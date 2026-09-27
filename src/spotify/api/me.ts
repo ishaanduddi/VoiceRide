@@ -1,4 +1,4 @@
-import type { SpotifyPaging, SpotifyUserProfile } from '../types';
+import type { SpotifyUserProfile } from '../types';
 import { spotifyRequest } from './client';
 
 /** `GET /me` — used to show who is connected and whether they have Premium. */

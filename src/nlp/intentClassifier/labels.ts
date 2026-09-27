@@ -18,7 +18,7 @@ export const INTENT_KEYWORDS = intentKeywords as unknown as Record<Intent, strin
  * classifier's top two candidates are one of these pairs and the margin is
  * small, the confidence engine applies a penalty.
  */
-export const CONFUSABLE_PAIRS: ReadonlyArray<readonly [Intent, Intent]> = [
+export const CONFUSABLE_PAIRS: readonly (readonly [Intent, Intent])[] = [
   ['INCREASE_VOLUME', 'DECREASE_VOLUME'],
   ['NEXT_SONG', 'PREVIOUS_SONG'],
   ['PLAY', 'PAUSE'],

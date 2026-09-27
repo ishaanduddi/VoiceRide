@@ -16,7 +16,7 @@ export const TOKEN_SYNONYMS: Record<string, string> = lexicon.tokenSynonyms;
  * Phrase-level rewrites applied to the cleaned string BEFORE tokenizing.
  * Order matters: longer, more specific phrases first.
  */
-export const PHRASE_REWRITES: Array<[RegExp, string]> = lexicon.phraseRewrites.map(
+export const PHRASE_REWRITES: [RegExp, string][] = lexicon.phraseRewrites.map(
   ([pattern, replacement]) => [new RegExp(pattern ?? '', 'g'), replacement ?? ''],
 );
 

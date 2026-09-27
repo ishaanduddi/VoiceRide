@@ -12,7 +12,6 @@ import { libraryStore, loadPlaylists } from '@/state/libraryStore';
 import { sessionStore } from '@/state/sessionStore';
 import { settingsStore, updateSettings } from '@/state/settingsStore';
 import { useAppContext } from '@/state/contextStore';
-import { toUserMessage } from '@/utils/errors';
 import { colors, fontSize, spacing } from '@/theme';
 
 export default function HomeScreen() {

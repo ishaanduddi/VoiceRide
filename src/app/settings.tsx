@@ -13,12 +13,12 @@ import { disconnectSpotifyAccount, sessionStore } from '@/state/sessionStore';
 import { colors, fontSize, radius, spacing } from '@/theme';
 
 const VOLUME_STEPS = [1, 5, 10];
-const CONFIDENCE_OPTIONS: Array<{ label: string; value: number }> = [
+const CONFIDENCE_OPTIONS: { label: string; value: number }[] = [
   { label: 'Lenient 0.60', value: 0.6 },
   { label: 'Default 0.72', value: 0.72 },
   { label: 'Strict 0.85', value: 0.85 },
 ];
-const PROFILES: Array<{ label: string; value: 'conservative' | 'balanced' | 'aggressive' }> = [
+const PROFILES: { label: string; value: 'conservative' | 'balanced' | 'aggressive' }[] = [
   { label: 'Gentle', value: 'conservative' },
   { label: 'Balanced', value: 'balanced' },
   { label: 'Strong', value: 'aggressive' },
@@ -52,8 +52,7 @@ export default function SettingsScreen() {
           onSelect={(value) => void updateSettings({ confidenceThreshold: value })}
         />
         <Text style={styles.note}>
-          Below the threshold VoiceRiders asks you to repeat instead of guessing — this is what stops
-          "increase volume" from becoming "decrease volume".
+          {'Below the threshold VoiceRiders asks you to repeat instead of guessing — this is what stops "increase volume" from becoming "decrease volume".'}
         </Text>
       </Card>
 
@@ -110,7 +109,7 @@ export default function SettingsScreen() {
 }
 
 interface SegmentedProps<T extends number | string> {
-  options: Array<{ label: string; value: T }>;
+  options: { label: string; value: T }[];
   selected: T;
   onSelect: (value: T) => void;
 }

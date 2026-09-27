@@ -52,7 +52,7 @@ const PREROLL_MS = 300;
 const MIN_UTTERANCE_MS = 200;
 
 interface FrameBuffer {
-  frames: Array<{ pcm: Float32Array; durationMs: number }>;
+  frames: { pcm: Float32Array; durationMs: number }[];
   ms: number;
 }
 
@@ -173,7 +173,9 @@ export function useRideMode(): UseRideModeResult {
   const microphone = useMicrophoneStream({ onFrame: handleFrame, onEvents: handleEvents });
 
   const microphoneRef = useRef(microphone);
-  microphoneRef.current = microphone;
+  useEffect(() => {
+    microphoneRef.current = microphone;
+  }, [microphone]);
 
   /** Keeps the adaptive engine in sync with the chosen profile. */
   useEffect(() => {

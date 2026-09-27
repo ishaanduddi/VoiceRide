@@ -31,7 +31,7 @@ export const AMBIGUITY_PENALTY = 0.7;
 /** Used when the ASR provider cannot report a confidence. */
 export const DEFAULT_ASR_CONFIDENCE = 0.75;
 
-export const CONFUSABLE_INTENT_PAIRS: ReadonlyArray<readonly [Intent, Intent]> = [
+export const CONFUSABLE_INTENT_PAIRS: readonly (readonly [Intent, Intent])[] = [
   ['INCREASE_VOLUME', 'DECREASE_VOLUME'],
   ['NEXT_SONG', 'PREVIOUS_SONG'],
   ['PLAY', 'PAUSE'],

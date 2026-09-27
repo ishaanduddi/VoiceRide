@@ -37,7 +37,6 @@ function stringifyMeta(meta: unknown): string {
 function emit(scope: string, level: LogLevel, message: string, meta?: unknown): void {
   if (LEVEL_WEIGHT[level] < LEVEL_WEIGHT[MIN_LEVEL]) return;
   const line = `[VoiceRiders:${scope}] ${message}${stringifyMeta(meta)}`;
-  // eslint-disable-next-line no-console
   const sink = level === 'error' ? console.error : console.log;
   sink(line);
 }

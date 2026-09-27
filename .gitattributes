@@ -1,0 +1,15 @@
+# Normalise line endings so Windows/macOS/Linux contributors do not fight CRLF.
+* text=auto eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.zip binary
+
+# Keep generated bundles out of diffs
+*.hbc binary

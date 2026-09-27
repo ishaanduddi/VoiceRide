@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
@@ -40,8 +40,7 @@ export default function ConnectScreen() {
         subtitle="VoiceRiders never sees your password and never stores a client secret."
       >
         <Text style={styles.body}>
-          You sign in on Spotify's own website. VoiceRiders only receives a temporary access token,
-          stored in your phone's secure keychain.
+          {"You sign in on Spotify's own website. VoiceRiders only receives a temporary access token, stored in your phone's secure keychain."}
         </Text>
       </Card>
 

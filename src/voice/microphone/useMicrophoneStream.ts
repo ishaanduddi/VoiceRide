@@ -57,8 +57,13 @@ export function useMicrophoneStream(
 
   const onFrameRef = useRef(onFrame);
   const onEventsRef = useRef(onEvents);
-  onFrameRef.current = onFrame;
-  onEventsRef.current = onEvents;
+
+  // Keep the newest callbacks available to the audio stream without having to
+  // tear down and recreate the native stream on every render.
+  useEffect(() => {
+    onFrameRef.current = onFrame;
+    onEventsRef.current = onEvents;
+  }, [onFrame, onEvents]);
 
   const [isActive, setIsActive] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);

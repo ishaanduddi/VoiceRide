@@ -3,7 +3,6 @@
 import { asrConfig, isCloudAsrConfigured } from '@/config';
 
 import { CloudAsrProvider } from './cloudAsrProvider';
-import { MockAsrProvider } from './mockAsrProvider';
 import { UnconfiguredAsrProvider } from './unconfiguredAsrProvider';
 import type { AsrProvider } from './types';
 

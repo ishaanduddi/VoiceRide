@@ -45,7 +45,7 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-function rankIntents(scores: Partial<Record<Intent, number>>): Array<{ intent: Intent; score: number }> {
+function rankIntents(scores: Partial<Record<Intent, number>>): { intent: Intent; score: number }[] {
   return INTENT_LIST.map((intent) => ({ intent, score: scores[intent] ?? 0 })).sort(
     (left, right) => right.score - left.score,
   );
