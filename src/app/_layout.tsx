@@ -4,8 +4,13 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { bootstrapApp } from '@/services/bootstrap';
+import { installGlobalErrorHandler } from '@/services/crashGuard';
 import { colors, fontSize } from '@/theme';
+
+// Capture unhandled JS errors as early as possible (no-op where unsupported).
+installGlobalErrorHandler();
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
@@ -31,7 +36,8 @@ export default function RootLayout() {
         Expo Router tries to resolve the incoming URL immediately, and there was
         no mounted navigator to resolve it into. Loading is now an overlay.
       */}
-      <Stack
+      <ErrorBoundary>
+        <Stack
         screenOptions={{
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
@@ -65,11 +71,12 @@ export default function RootLayout() {
       </Stack>
 
       {!ready ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={styles.loadingText}>VoiceRiders</Text>
-        </View>
-      ) : null}
+          <View style={styles.loading}>
+            <ActivityIndicator color={colors.primary} size="large" />
+            <Text style={styles.loadingText}>VoiceRiders</Text>
+          </View>
+        ) : null}
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }

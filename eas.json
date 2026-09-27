@@ -11,6 +11,7 @@
         "buildType": "apk"
       },
       "env": {
+        "EXPO_PUBLIC_SPOTIFY_CLIENT_ID": "bd64bbdc673943c6a3903851695645e3",
         "EXPO_PUBLIC_SPOTIFY_REDIRECT_URI": "https://voiceriders-oauth-relay.vercel.app/api/spotify-callback"
       }
     },
