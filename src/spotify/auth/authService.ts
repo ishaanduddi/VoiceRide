@@ -8,7 +8,8 @@
 import { SpotifyAuthError, SpotifyNotConnectedError } from '@/utils/errors';
 import { createLogger } from '@/utils/logger';
 
-import { authorizeWithSpotify, refreshSpotifyTokens } from './spotifyAuth';
+import { clearPendingAuth } from './pendingAuth';
+import { authorizeWithSpotify, completeAuthorization, refreshSpotifyTokens } from './spotifyAuth';
 import {
   clearProfile,
   clearTokens,
@@ -80,6 +81,23 @@ export async function connectSpotify(): Promise<StoredTokens> {
   const tokens = await authorizeWithSpotify();
   await saveTokens(tokens);
   return tokens;
+}
+
+/**
+ * Completes a sign-in from a redirect URL.
+ *
+ * Entry point for the `/spotify-callback` deep link, which is what actually
+ * fires when Android killed the app while the rider was in the browser.
+ */
+export async function completeSpotifyAuthorization(redirectUrl: string): Promise<StoredTokens> {
+  const tokens = await completeAuthorization(redirectUrl);
+  await saveTokens(tokens);
+  return tokens;
+}
+
+/** Abandons an in-flight authorization (e.g. the user pressed back). */
+export async function cancelPendingAuthorization(): Promise<void> {
+  await clearPendingAuth();
 }
 
 export async function disconnectSpotify(): Promise<void> {

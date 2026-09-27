@@ -16,8 +16,13 @@
  *                                 │  (what WebBrowser waits for)
  *                                 └──► code + verifier exchanged for tokens
  *
- * AuthRequest could not express this two-hop redirect, so the URL is assembled
- * explicitly and `WebBrowser.openAuthSessionAsync` watches for the app scheme.
+ * ── Why there are two entry points for the callback ────────────────────────
+ * On Android the custom-scheme redirect can be delivered EITHER to the in-app
+ * browser session (which resolves `openAuthSessionAsync`) OR to the app itself
+ * as a deep link, which lands on the `/spotify-callback` route — and if the OS
+ * killed the backgrounded app, only the second one happens. Both paths call
+ * `completeAuthorization()`, and the single-use entry in `pendingAuth` guarantees
+ * the code is exchanged exactly once.
  */
 
 import * as AuthSession from 'expo-auth-session';
@@ -28,6 +33,7 @@ import { isRedirectConfigured, isSpotifyConfigured, spotifyConfig } from '@/conf
 import { SpotifyAuthError } from '@/utils/errors';
 import { createLogger } from '@/utils/logger';
 
+import { consumePendingAuth, savePendingAuth } from './pendingAuth';
 import { createCodeChallenge, createCodeVerifier, createState } from './pkce';
 import { tokensFromResponse, type StoredTokens } from './tokenStore';
 
@@ -96,6 +102,91 @@ export function parseRedirectParams(url: string): Record<string, string> {
   return params;
 }
 
+/**
+ * Turns an expo-auth-session `TokenError` into something actionable.
+ *
+ * The library reports only "the request failed"; the useful part is the OAuth
+ * error the provider returned (`invalid_grant`, `invalid_client`, …) plus its
+ * description, which `ResponseError` exposes via `code`/`description`/`params`.
+ */
+function describeProviderError(error: unknown): string {
+  const failure = error as {
+    code?: string;
+    description?: string;
+    params?: Record<string, string>;
+    message?: string;
+  };
+
+  const providerError = failure?.params?.error ?? failure?.code;
+  const providerDescription = failure?.params?.error_description ?? failure?.description;
+  const detail = [providerError, providerDescription].filter(Boolean).join(' — ');
+
+  if (detail) return `Spotify rejected the sign-in: ${detail}`;
+  return failure?.message ?? 'Spotify rejected the sign-in.';
+}
+
+/**
+ * Completes an authorization from a redirect URL.
+ *
+ * Used by both the in-app browser session and the `/spotify-callback` route.
+ * The PKCE verifier comes from secure storage, so this also works after the app
+ * was killed and cold-started by the deep link.
+ */
+export async function completeAuthorization(redirectUrl: string): Promise<StoredTokens> {
+  const params = parseRedirectParams(redirectUrl);
+
+  if (params.error) {
+    throw new SpotifyAuthError(
+      `Spotify rejected the sign-in: ${params.error}${
+        params.error_description ? ` — ${params.error_description}` : ''
+      }`,
+    );
+  }
+
+  const state = params.state;
+  if (!state) throw new SpotifyAuthError('Spotify did not return an OAuth state value.');
+
+  // Single use: also validates the state, so a forged callback cannot be used.
+  const pending = await consumePendingAuth(state);
+  if (!pending) {
+    throw new SpotifyAuthError(
+      'This sign-in link has already been used or has expired. Please start again.',
+    );
+  }
+
+  const code = params.code;
+  if (!code) throw new SpotifyAuthError('Spotify did not return an authorization code.');
+
+  let tokenResponse: TokenResponse;
+  try {
+    tokenResponse = await AuthSession.exchangeCodeAsync(
+      {
+        clientId: spotifyConfig.clientId,
+        code,
+        // Must be identical to the value used in the authorization request.
+        redirectUri: pending.redirectUri,
+        extraParams: { code_verifier: pending.verifier },
+      },
+      spotifyDiscovery,
+    );
+  } catch (error) {
+    log.warn('token exchange failed', error);
+    throw new SpotifyAuthError(describeProviderError(error));
+  }
+
+  log.info('Spotify authorization complete');
+  return tokensFromResponse(tokenResponse);
+}
+
+/**
+ * Guards against two overlapping authorizations.
+ *
+ * Two in-flight attempts would each persist a different PKCE verifier, so
+ * completing the older one would fail with `invalid_grant`. A double-tap on
+ * "Connect Spotify" must not be able to create that state.
+ */
+let authorizationInFlight = false;
+
 /** Opens Spotify's consent screen and exchanges the returned code. */
 export async function authorizeWithSpotify(): Promise<StoredTokens> {
   if (!isSpotifyConfigured()) {
@@ -109,65 +200,53 @@ export async function authorizeWithSpotify(): Promise<StoredTokens> {
         'and set EXPO_PUBLIC_SPOTIFY_REDIRECT_URI (see docs/SPOTIFY_SETUP.md).',
     );
   }
-
-  const redirectUri = getSpotifyRedirectUri();
-  const returnUri = getAppReturnUri();
-
-  const codeVerifier = createCodeVerifier();
-  const codeChallenge = await createCodeChallenge(codeVerifier);
-  const state = createState();
-
-  const authorizationUrl = `${spotifyConfig.authorizationEndpoint}?${buildQuery({
-    response_type: 'code',
-    client_id: spotifyConfig.clientId,
-    scope: spotifyConfig.scopes.join(' '),
-    redirect_uri: redirectUri,
-    state,
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
-    show_dialog: 'false',
-  })}`;
-
-  log.info('opening Spotify consent', { redirectUri, returnUri });
-
-  const result = await WebBrowser.openAuthSessionAsync(authorizationUrl, returnUri);
-
-  if (result.type === 'cancel' || result.type === 'dismiss') {
-    throw new SpotifyAuthError('Spotify sign-in was cancelled.');
+  if (authorizationInFlight) {
+    throw new SpotifyAuthError('A Spotify sign-in is already in progress.');
   }
-  if (result.type !== 'success' || !result.url) {
-    throw new SpotifyAuthError('Spotify sign-in did not complete.');
-  }
+  authorizationInFlight = true;
 
-  const params = parseRedirectParams(result.url);
+  try {
+    const redirectUri = getSpotifyRedirectUri();
+    const returnUri = getAppReturnUri();
 
-  if (params.error) {
-    throw new SpotifyAuthError(
-      `Spotify rejected the sign-in: ${params.error}${params.error_description ? ` — ${params.error_description}` : ''}`,
-    );
-  }
-  // CSRF check: the value we generated must come back unchanged.
-  if (params.state !== state) {
-    throw new SpotifyAuthError('OAuth state mismatch — the response was rejected.');
-  }
-  const code = params.code;
-  if (!code) {
-    throw new SpotifyAuthError('Spotify did not return an authorization code.');
-  }
+    const codeVerifier = createCodeVerifier();
+    const codeChallenge = await createCodeChallenge(codeVerifier);
+    const state = createState();
 
-  // NOTE: `redirectUri` must be identical to the one used above.
-  const tokenResponse = await AuthSession.exchangeCodeAsync(
-    {
-      clientId: spotifyConfig.clientId,
-      code,
-      redirectUri,
-      extraParams: { code_verifier: codeVerifier },
-    },
-    spotifyDiscovery,
-  );
+    // Persist BEFORE leaving the app: the process may be killed while the user
+    // signs in, and the cold-started callback still has to complete.
+    await savePendingAuth({ state, verifier: codeVerifier, redirectUri, createdAt: Date.now() });
 
-  log.info('Spotify authorization complete');
-  return tokensFromResponse(tokenResponse);
+    const authorizationUrl = `${spotifyConfig.authorizationEndpoint}?${buildQuery({
+      response_type: 'code',
+      client_id: spotifyConfig.clientId,
+      scope: spotifyConfig.scopes.join(' '),
+      redirect_uri: redirectUri,
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+      show_dialog: 'false',
+    })}`;
+
+    log.info('opening Spotify consent', { redirectUri, returnUri });
+
+    const result = await WebBrowser.openAuthSessionAsync(authorizationUrl, returnUri);
+
+    if (result.type !== 'success' || !result.url) {
+      // IMPORTANT: do NOT clear the pending authorization — on Android the
+      // deep link may have been delivered to the app instead, and the
+      // /spotify-callback route still needs to complete the exchange.
+      log.info(`browser session ended as "${result.type}"; awaiting deep-link completion`);
+      throw new SpotifyAuthError(
+        'Spotify sign-in did not return to the app. If the browser closed without a message, reopen VoiceRiders — ' +
+          'the sign-in may still complete.',
+      );
+    }
+
+    return await completeAuthorization(result.url);
+  } finally {
+    authorizationInFlight = false;
+  }
 }
 
 /** Exchanges a refresh token for a fresh access token. */

@@ -7,6 +7,7 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { isRedirectConfigured, isSpotifyConfigured, spotifyConfig } from '@/config';
+import { getConnectionState } from '@/spotify/auth/authService';
 import { getAppReturnUri, getSpotifyRedirectUri } from '@/spotify/auth/spotifyAuth';
 import { loadPlaylists } from '@/state/libraryStore';
 import { useStore } from '@/state/observable';
@@ -32,6 +33,14 @@ export default function ConnectScreen() {
       await loadPlaylists(true).catch(() => undefined);
       router.replace('/home');
     } catch (connectError) {
+      // On Android the browser session can end before the deep link arrives.
+      // If the callback already completed the sign-in, just carry on.
+      const connection = await getConnectionState();
+      if (connection === 'connected') {
+        await loadPlaylists(true).catch(() => undefined);
+        router.replace('/home');
+        return;
+      }
       setError(toUserMessage(connectError));
     }
   };
