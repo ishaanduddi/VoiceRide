@@ -26,10 +26,23 @@ they are generated (CNG); configure native behaviour through `app.json` and conf
 
 ```bash
 npx eas-cli@latest login
+npx eas-cli@latest init
 npx eas-cli@latest build --profile development --platform android
 # install the resulting APK, then:
 npx expo start --dev-client
 ```
+
+**Just want an installable app (no dev server)?** Use the `preview` profile, which is already
+configured to emit a standalone APK:
+
+```bash
+npx eas-cli@latest build --profile preview --platform android
+```
+
+Remember that `.env` is git-ignored and therefore not uploaded, so build-time `EXPO_PUBLIC_*` values
+must be provided via `eas.json` → `build.preview.env` or `eas env:create` (see the README section
+"Install on your phone (APK)"). Neither the Play Store account nor the Apple Developer account is
+needed for either of these.
 
 iOS requires an Apple Developer account for device builds; `--platform ios` with an internal
 distribution profile is the usual route.
@@ -49,13 +62,14 @@ distribution profile is the usual route.
 | 9 | Screen locked / app backgrounded | Audio continues; microphone policy behaves as configured |
 | 10 | No Spotify device open | Clear "no active device" message, or automatic device wake |
 
-### 9.4 Optional native upgrades
+### 9.4 Native upgrades
 
+* **On-device ASR — implemented.** `whisper.rn` (whisper.cpp) is wired in as the default engine with a
+  runtime model download and command biasing. It requires the development build from 9.2; see
+  [`ON_DEVICE_ASR.md`](ON_DEVICE_ASR.md).
 * **VAD** — swap `EnergyVad` for WebRTC VAD or Silero VAD behind the same
-  `process(frame, durationMs)` interface (see `docs/ARCHITECTURE.md` §5).
-* **On-device ASR** — implement `AsrProvider` with `whisper.rn` / `whisper.cpp` (and a quantised
-  tiny/base model) for offline, private, zero-network recognition. The `AsrProvider` interface was
-  designed for this: PCM in, `{ text, confidence }` out.
+  `process(frame, durationMs)` interface (see `docs/ARCHITECTURE.md` §5). whisper.rn also ships a
+  Silero VAD context if you want the two to share a model.
 * **Companion app** for route/navigation intents (out of scope for this brief).
 
 ---
@@ -65,7 +79,8 @@ distribution profile is the usual route.
 ### 10.1 Optimization backlog
 
 - [ ] Profile a 30-minute ride: CPU, RAM, battery (`docs/EVALUATION.md` §4).
-- [ ] If a native ASR model is added, load/unload it around utterances rather than keeping it resident.
+- [ ] Measure whisper model load time and keep the context warm for the whole ride (already the
+      behaviour), releasing it in `dispose()` when the engine changes.
 - [ ] Cache playlist/track metadata with a TTL so app start is instant on poor signal.
 - [ ] Add an offline queue for playback commands issued while connectivity drops.
 - [ ] Reduce `MAX_UTTERANCE_MS` if latency dominates; raise it if commands get clipped.

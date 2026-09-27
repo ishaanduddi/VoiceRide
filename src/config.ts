@@ -20,6 +20,16 @@ function readEnv(key: string): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function readEnum<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  const value = readEnv(key);
+  return value && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
+}
+
+function readInt(key: string, fallback: number): number {
+  const value = Number(readEnv(key) ?? '');
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+
 /** Scopes required by the features implemented in this app. */
 export const SPOTIFY_SCOPES = [
   'playlist-read-private',
@@ -55,10 +65,34 @@ export const spotifyConfig = {
   scheme: 'voiceriders',
 };
 
+export type AsrProviderPreference = 'auto' | 'on-device' | 'cloud' | 'off';
+
+const ASR_PREFERENCES: readonly AsrProviderPreference[] = ['auto', 'on-device', 'cloud', 'off'];
+
 export const asrConfig = {
+  /**
+   * Which speech engine to use.
+   *   auto      - on-device when the model is installed, else cloud, else none
+   *   on-device - whisper.cpp on the phone (needs a development build)
+   *   cloud     - POST each utterance to EXPO_PUBLIC_ASR_ENDPOINT
+   *   off       - disable recognition
+   */
+  provider: readEnum<AsrProviderPreference>('EXPO_PUBLIC_ASR_PROVIDER', ASR_PREFERENCES, 'auto'),
   endpoint: readEnv('EXPO_PUBLIC_ASR_ENDPOINT'),
   apiKey: readEnv('EXPO_PUBLIC_ASR_API_KEY'),
   model: readEnv('EXPO_PUBLIC_ASR_MODEL') ?? 'whisper-1',
+} as const;
+
+/** On-device whisper.cpp configuration (see docs/ON_DEVICE_ASR.md). */
+export const whisperConfig = {
+  /** GGML model downloaded at runtime; never bundled in the repository. */
+  modelUrl:
+    readEnv('EXPO_PUBLIC_WHISPER_MODEL_URL') ??
+    'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin',
+  modelFilename: readEnv('EXPO_PUBLIC_WHISPER_MODEL_FILENAME') ?? 'ggml-tiny.en.bin',
+  /** GPU (iOS Core ML / Metal, Android Vulkan + Hexagon NPU when available). */
+  useGpu: readEnv('EXPO_PUBLIC_WHISPER_USE_GPU') !== 'false',
+  maxThreads: readInt('EXPO_PUBLIC_WHISPER_MAX_THREADS', 4),
 } as const;
 
 export const isSpotifyConfigured = (): boolean => spotifyConfig.clientId.length > 0;

@@ -26,4 +26,6 @@ export interface AsrProvider {
   readonly isConfigured: boolean;
   /** Converts an utterance into text. */
   transcribe(utterance: AudioUtterance): Promise<AsrResult>;
+  /** Optional: release native resources when this provider is replaced. */
+  dispose?(): Promise<void>;
 }

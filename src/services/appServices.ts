@@ -57,9 +57,9 @@ export const voiceController = new VoiceController({
     }),
 });
 
-/** Rebuilds the ASR provider (e.g. after the user configures an endpoint). */
-export function reloadAsrProvider(): void {
-  voiceController.setAsrProvider(createAsrProvider());
+/** Rebuilds the ASR provider (e.g. after a model download or settings change). */
+export async function reloadAsrProvider(): Promise<void> {
+  await voiceController.replaceAsrProvider(createAsrProvider());
 }
 
 /** Applies profile changes made in Settings to the live adaptive engine. */

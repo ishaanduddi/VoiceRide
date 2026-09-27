@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Banner } from '@/components/Banner';
@@ -6,11 +7,20 @@ import { Card } from '@/components/Card';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { SettingToggle } from '@/components/SettingToggle';
 import { isCloudAsrConfigured, isSpotifyConfigured } from '@/config';
-import { applyAdaptiveAudioProfile } from '@/services/appServices';
+import { applyAdaptiveAudioProfile, reloadAsrProvider } from '@/services/appServices';
 import { useStore } from '@/state/observable';
 import { settingsStore, updateSettings } from '@/state/settingsStore';
 import { disconnectSpotifyAccount, sessionStore } from '@/state/sessionStore';
 import { colors, fontSize, radius, spacing } from '@/theme';
+import {
+  deleteModel,
+  describeAsrEngine,
+  downloadModel,
+  formatModelSize,
+  isWhisperAvailable,
+  modelStore,
+  refreshModelStatus,
+} from '@/voice/asr';
 
 const VOLUME_STEPS = [1, 5, 10];
 const CONFIDENCE_OPTIONS: { label: string; value: number }[] = [
@@ -85,9 +95,12 @@ export default function SettingsScreen() {
         />
       </Card>
 
+      <SpeechEngineCard />
+
       <Card title="Configuration">
         <Row label="Spotify client id" value={isSpotifyConfigured() ? 'configured' : 'missing'} />
-        <Row label="Speech recognition" value={isCloudAsrConfigured() ? 'cloud endpoint set' : 'not configured'} />
+        <Row label="Speech recognition" value={describeAsrEngine()} />
+        <Row label="Cloud endpoint" value={isCloudAsrConfigured() ? 'set' : 'not set'} />
         <Row label="Account" value={session.displayName ?? 'not connected'} />
       </Card>
 
@@ -105,6 +118,81 @@ export default function SettingsScreen() {
 
       <Text style={styles.footnote}>VoiceRiders · hands-free Spotify for riders</Text>
     </ScreenContainer>
+  );
+}
+
+/**
+ * Speech engine status + one-tap model download.
+ *
+ * The model is fetched at runtime (never bundled) and `reloadAsrProvider()` is
+ * called afterwards so the factory immediately switches to on-device Whisper.
+ */
+function SpeechEngineCard() {
+  const model = useStore(modelStore);
+  const [nativeAvailable, setNativeAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void refreshModelStatus();
+    void isWhisperAvailable().then(setNativeAvailable);
+  }, []);
+
+  const downloading = model.state === 'downloading';
+
+  const modelLabel =
+    model.state === 'ready'
+      ? `ready · ${formatModelSize(model.sizeBytes)}`
+      : model.state === 'downloading'
+        ? `downloading ${Math.round(model.progress * 100)}%`
+        : model.state === 'error'
+          ? 'download failed'
+          : 'not downloaded';
+
+  const handleDownload = async () => {
+    await downloadModel();
+    await reloadAsrProvider();
+  };
+
+  const handleDelete = async () => {
+    await deleteModel();
+    await reloadAsrProvider();
+  };
+
+  return (
+    <Card
+      title="Speech recognition"
+      subtitle="On-device Whisper runs offline with no API key — ideal while riding."
+    >
+      <Row label="Engine" value={describeAsrEngine()} />
+      <Row label="Model" value={modelLabel} />
+
+      <Banner tone="error" message={model.error} />
+
+      {nativeAvailable === false ? (
+        <Banner
+          tone="warning"
+          message={
+            'On-device Whisper needs a development build — Expo Go cannot load native modules. Here you can ' +
+            'still use the cloud endpoint (if configured) or the manual command box in Ride Mode.'
+          }
+        />
+      ) : null}
+
+      {model.state === 'ready' ? (
+        <Button title="Delete model" variant="secondary" onPress={() => void handleDelete()} />
+      ) : (
+        <Button
+          title={downloading ? `Downloading ${Math.round(model.progress * 100)}%` : 'Download speech model'}
+          onPress={() => void handleDownload()}
+          loading={downloading}
+          disabled={downloading}
+        />
+      )}
+
+      <Text style={styles.note}>
+        whisper.cpp tiny.en is about 75 MB and is downloaded once. Larger models (base.en, small.en) are more
+        accurate in noise but slower — see docs/ON_DEVICE_ASR.md to swap the URL.
+      </Text>
+    </Card>
   );
 }
 

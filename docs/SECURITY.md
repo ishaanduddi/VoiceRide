@@ -89,7 +89,9 @@ change.
 * `RECORD_AUDIO` / the iOS microphone usage string are requested **only when Ride Mode starts**, not
   at launch.
 * The microphone stream is stopped when the Ride Mode screen unmounts and on error paths.
-* VAD runs locally; **no audio leaves the device unless an ASR endpoint is configured**.
+* VAD runs locally; **no audio leaves the device unless a cloud ASR endpoint is configured**.
+  The default engine is **on-device Whisper**, so in the shipped configuration speech is never
+  uploaded at all — see [`ON_DEVICE_ASR.md`](ON_DEVICE_ASR.md).
 * Background recording (`enableBackgroundRecording`) is declared in `app.json` because the
   development-build stage needs it; it shows the OS-mandated recording notification on Android.
   Disable it if you do not need audio while the app is backgrounded.

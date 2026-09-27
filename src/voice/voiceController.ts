@@ -35,9 +35,16 @@ export interface UtteranceResult {
 export class VoiceController {
   constructor(private readonly deps: VoiceControllerDeps) {}
 
-  /** Keeps the ASR provider swappable at runtime (e.g. after a settings change). */
-  setAsrProvider(provider: AsrProvider): void {
+  /** Keeps the ASR provider swappable at runtime (e.g. after a model download). */
+  async replaceAsrProvider(provider: AsrProvider): Promise<void> {
+    const previous = this.deps.asr;
     this.deps.asr = provider;
+    // Free native resources (e.g. a loaded whisper context) without blocking.
+    if (previous.dispose) {
+      await previous.dispose().catch((error: unknown) =>
+        log.warn('failed to dispose the previous ASR provider', error),
+      );
+    }
   }
 
   async handleUtterance(utterance: AudioUtterance): Promise<UtteranceResult> {

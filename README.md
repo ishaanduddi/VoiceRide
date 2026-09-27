@@ -25,6 +25,8 @@ wind, engine noise, traffic and a phone tucked inside a jacket.
 | 8 | Real ML intent classifier, trained + evaluated | `ml/`, `src/nlp/intentClassifier` |
 | 9 | Mobile-first, rider-oriented UI | `src/app`, `src/components` |
 | 10 | PKCE-only Spotify auth, secure token storage | `src/spotify/auth`, `src/storage` |
+| 11 | On-device Whisper: offline, private ASR + command biasing | `src/voice/asr/whisper` |
+| 12 | An HTTPS OAuth relay, because Spotify now rejects custom schemes | `relay/` |
 
 ---
 
@@ -40,7 +42,7 @@ wind, engine noise, traffic and a phone tucked inside a jacket.
 | 6 | Context-aware fuzzy resolution, ASR-error recovery, confidence scoring | ✅ implemented |
 | 7 | Ride Mode, hands-free operation | ✅ implemented |
 | 8 | Adaptive Audio Mode (estimation, smoothing, hysteresis) | ✅ implemented |
-| 9 | Development build + Android/iOS device testing | ⏳ config ready — needs `eas build` + hardware |
+| 9 | Development build + Android/iOS device testing | ⏳ APK path ready & documented — needs an EAS build + a phone; on-device Whisper already wired in |
 | 10 | Optimization, production builds, Play Store / App Store | ⏳ see `docs/ROADMAP.md` |
 
 Everything ships as **source + configuration**; the only unavailable parts are the ones that
@@ -97,6 +99,57 @@ npm run ml:wer         # Word Error Rate per noise environment
 
 ---
 
+## Install on your phone (APK — no store account)
+
+You do **not** need Google Play ($25) or an Apple Developer account ($99) to *use* VoiceRiders on your
+own phone. EAS builds a standalone APK you can sideload. The `preview` profile in `eas.json` is already
+configured for exactly this (`distribution: internal`, `buildType: apk`, no dev-client launcher).
+
+```bash
+# 1. free Expo account, once
+npx eas-cli@latest login
+npx eas-cli@latest init          # links this repo to an EAS project (writes extra.eas.projectId)
+
+# 2. give the build the public config it needs (see note below)
+#    eas.json -> build.preview.env   OR   use eas env:create
+
+# 3. build the APK
+npx eas-cli@latest build --profile preview --platform android
+```
+
+EAS prints a progress URL and, at the end, a **download link / QR code** for the `.apk`. Open it on the
+phone and allow "install from unknown sources".
+
+> **Why step 2 matters:** `.env` is git-ignored, so it is *not* uploaded to the build. Build-time
+> `EXPO_PUBLIC_*` values must come from EAS. Either add them to `eas.json`:
+>
+> ```json
+> "preview": {
+>   "distribution": "internal",
+>   "android": { "buildType": "apk" },
+>   "env": {
+>     "EXPO_PUBLIC_SPOTIFY_CLIENT_ID": "your_client_id",
+>     "EXPO_PUBLIC_SPOTIFY_REDIRECT_URI": "https://your-relay.vercel.app/api/spotify-callback"
+>   }
+> }
+> ```
+>
+> or with `npx eas-cli@latest env:create --name EXPO_PUBLIC_SPOTIFY_CLIENT_ID --value <id> --environment preview --visibility plain`
+> (the client id is public, so `plain` is correct — never mark a real secret as `plain`).
+
+After installing:
+
+1. Deploy the OAuth relay once (`relay/`) and register its URL with Spotify — see
+   [`docs/SPOTIFY_SETUP.md`](docs/SPOTIFY_SETUP.md). The APK returns via `voiceriders://spotify-callback`.
+2. **Settings → Speech recognition → Download speech model** (~75 MB, one time) to enable offline voice
+   control.
+3. Add each tester's Spotify account under **User management** in the Spotify dashboard (up to 25).
+
+`npx eas-cli@latest build --profile development --platform android` produces a second APK that *does*
+load JS from your dev server — useful while iterating, not for daily riding.
+
+---
+
 ## Environment variables
 
 | Variable | Required | Purpose |
@@ -105,11 +158,30 @@ npm run ml:wer         # Word Error Rate per noise environment
 | `EXPO_PUBLIC_SPOTIFY_REDIRECT_URI` | yes | HTTPS relay URL registered with Spotify (custom schemes are rejected) |
 | `EXPO_PUBLIC_SPOTIFY_APP_RETURN_URI` | no | Where the relay returns into the app; defaults to `voiceriders://spotify-callback` |
 | `EXPO_PUBLIC_SPOTIFY_MARKET` | no | ISO-3166 market code, e.g. `IN` |
-| `EXPO_PUBLIC_ASR_ENDPOINT` | no | Cloud STT for development; blank = ASR disabled |
+| `EXPO_PUBLIC_ASR_PROVIDER` | no | `auto` (default) · `on-device` · `cloud` · `off` |
+| `EXPO_PUBLIC_WHISPER_MODEL_URL` | no | GGML model to download; defaults to whisper.cpp `tiny.en` |
+| `EXPO_PUBLIC_WHISPER_MODEL_FILENAME` | no | Local filename for the model |
+| `EXPO_PUBLIC_WHISPER_USE_GPU` | no | `true` (default) lets whisper.cpp use GPU/NPU |
+| `EXPO_PUBLIC_WHISPER_MAX_THREADS` | no | CPU threads for on-device decoding (default 4) |
+| `EXPO_PUBLIC_ASR_ENDPOINT` | no | Cloud STT for development; blank = cloud disabled |
 | `EXPO_PUBLIC_ASR_API_KEY` | no | **Not a secret** — see `docs/SECURITY.md` |
 | `EXPO_PUBLIC_ASR_MODEL` | no | Model hint sent to your ASR endpoint |
 
 Anything prefixed `EXPO_PUBLIC_` is inlined into the shipped bundle. Treat it as public.
+
+## Speech recognition
+
+Two interchangeable engines sit behind one `AsrProvider` interface:
+
+* **On-device Whisper** (`whisper.cpp` via `whisper.rn`) — offline, private, no API key, no per-request
+  cost. Needs a **development build** and a one-time model download (**Settings → Speech recognition**).
+  Default when the model is present.
+* **Cloud endpoint** — POST each utterance as a WAV, read `{ text }`. Works in Expo Go; needs your own
+  endpoint. The API key belongs on your server, not in the bundle.
+
+The engine factory picks automatically (`auto`), and both paths are detailed in
+[`docs/ON_DEVICE_ASR.md`](docs/ON_DEVICE_ASR.md). Command biasing seeds Whisper's decoder with the
+command vocabulary, which matters a lot for short, noisy utterances.
 
 ---
 
@@ -291,6 +363,7 @@ voice control where it is legal and safe to do so.
 | [`docs/SPOTIFY_SETUP.md`](docs/SPOTIFY_SETUP.md) | Dashboard setup, redirect URIs, troubleshooting |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | PKCE, token storage, secret handling |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | Datasets, metrics, how to reproduce/extend |
+| [`docs/ON_DEVICE_ASR.md`](docs/ON_DEVICE_ASR.md) | Offline Whisper: dev build, models, tuning |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phases 9–10: dev builds, device testing, store release |
 
 ## Contributing (group members)

@@ -15,6 +15,7 @@ import { useAppContext } from '@/state/contextStore';
 import { libraryStore } from '@/state/libraryStore';
 import { useStore } from '@/state/observable';
 import { settingsStore } from '@/state/settingsStore';
+import { describeAsrEngine } from '@/voice/asr';
 import { colors, fontSize, spacing } from '@/theme';
 
 const STATUS_LABEL: Record<RideStatus, string> = {
@@ -74,6 +75,7 @@ export default function RideModeScreen() {
           label="Volume"
           value={context.volumePercent !== undefined ? `${context.volumePercent}%` : 'unknown'}
         />
+        <Row label="Engine" value={describeAsrEngine()} />
       </Card>
 
       {state.adaptiveAudioEnabled ? (

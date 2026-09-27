@@ -66,6 +66,9 @@ command, a new intent, or a new speech engine.
 | `audioProcessing/pcm.ts` | int16/float32 → mono Float32, frame duration, concatenation |
 | `audioProcessing/wav.ts` | 16-bit mono WAV encoder for cloud ASR |
 | `asr/*` | `AsrProvider` interface + Cloud / Mock / Unconfigured implementations + factory |
+| `asr/whisper/modelManager.ts` | Runtime download + cache of the GGML model (`expo-file-system`) |
+| `asr/whisper/whisperModule.ts` | The only module that loads `whisper.rn`, via a guarded dynamic import |
+| `asr/whisper/onDeviceWhisperProvider.ts` | Offline transcription + command-biasing prompt |
 | `voiceController.ts` | utterance → ASR → `interpretCommand()` → dispatcher |
 
 **Why an energy VAD?** It is ~30 lines of arithmetic per 30 ms frame, works in Expo Go, and gives an
@@ -234,7 +237,11 @@ export interface AsrProvider {
 `AudioUtterance` is already mono float32 PCM plus a sample rate, so an on-device Whisper
 (`whisper.rn`, `whisper.cpp`) or a native platform recogniser is a drop-in: encode to WAV
 (`audioProcessing/wav.ts`) or feed PCM directly. Then return it from `createAsrProvider()`.
-Nothing else changes.
+
+**This is implemented**: `whisper.rn` (whisper.cpp) is the default engine, with a runtime model
+download and a command-biasing prompt — see [`ON_DEVICE_ASR.md`](ON_DEVICE_ASR.md). Note that the
+native module is loaded with a guarded dynamic import so Expo Go degrades gracefully instead of
+crashing.
 
 ### Swap the VAD
 
