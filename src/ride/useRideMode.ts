@@ -1,0 +1,307 @@
+/**
+ * Ride Mode orchestration.
+ *
+ *   mic frames -> VAD -> utterance -> VoiceController (ASR -> NLP -> dispatch)
+ *
+ * Also owns Adaptive Audio Mode while Ride Mode is running, because both share
+ * the same microphone stream.
+ *
+ * SAFETY: everything here is voice-driven. The only UI affordance is a manual
+ * text box, which exists for development/testing (e.g. Expo Go without an ASR
+ * endpoint) and must not be used while actually riding.
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import type { NoiseZone } from '@/adaptiveAudio/config';
+import { hapticDouble, hapticTap, speak, stopSpeaking } from '@/effects/feedback';
+import { dispatchInterpretation } from '@/nlp/dispatcher/commandDispatcher';
+import { interpretCommand } from '@/nlp/pipeline';
+import { adaptiveAudio, playbackController, voiceController } from '@/services/appServices';
+import { contextManager } from '@/state/contextStore';
+import { libraryStore } from '@/state/libraryStore';
+import { sessionStore } from '@/state/sessionStore';
+import { settingsStore } from '@/state/settingsStore';
+import { toUserMessage } from '@/utils/errors';
+import { createLogger } from '@/utils/logger';
+import { audioConfig } from '@/config';
+import { concatFloat32 } from '@/voice/audioProcessing/pcm';
+import { useMicrophoneStream, type MicrophoneFrame } from '@/voice/microphone/useMicrophoneStream';
+import type { VadEvent } from '@/voice/vad/energyVad';
+
+const log = createLogger('ride');
+
+export type RideStatus = 'idle' | 'starting' | 'listening' | 'processing' | 'stopped' | 'error';
+
+export interface RideState {
+  status: RideStatus;
+  error?: string;
+  lastTranscript?: string;
+  lastResponse?: string;
+  lastIntent?: string;
+  confidence?: number;
+  decision?: string;
+  noiseZone: NoiseZone;
+  ambientDbfs?: number;
+  adaptiveAudioEnabled: boolean;
+}
+
+/** Audio kept before speech onset so the first phoneme is never clipped. */
+const PREROLL_MS = 300;
+/** Ignore utterances shorter than this (a cough, a car horn). */
+const MIN_UTTERANCE_MS = 200;
+
+interface FrameBuffer {
+  frames: Array<{ pcm: Float32Array; durationMs: number }>;
+  ms: number;
+}
+
+const emptyBuffer = (): FrameBuffer => ({ frames: [], ms: 0 });
+
+export interface UseRideModeResult {
+  state: RideState;
+  start: () => Promise<void>;
+  stop: () => void;
+  /** Dev/testing path that bypasses the microphone and ASR. */
+  submitManualCommand: (text: string) => Promise<void>;
+}
+
+export function useRideMode(): UseRideModeResult {
+  const [state, setState] = useState<RideState>({
+    status: 'idle',
+    noiseZone: 'QUIET',
+    adaptiveAudioEnabled: false,
+  });
+
+  const rollingRef = useRef<FrameBuffer>(emptyBuffer());
+  const utteranceRef = useRef<FrameBuffer>(emptyBuffer());
+  const processingRef = useRef(false);
+
+  /** ASR -> NLP -> dispatch for one closed utterance. */
+  const processUtterance = useCallback(async (pcm: Float32Array, durationMs: number) => {
+    if (processingRef.current) return;
+    processingRef.current = true;
+    setState((previous) => ({ ...previous, status: 'processing' }));
+
+    const settings = settingsStore.getState();
+
+    try {
+      const result = await voiceController.handleUtterance({
+        pcm,
+        sampleRate: audioConfig.sampleRate,
+        durationMs,
+      });
+
+      const spoken = result.skipped ? undefined : result.outcome?.spoken;
+
+      setState((previous) => ({
+        ...previous,
+        status: 'listening',
+        lastTranscript: result.asr.text,
+        lastResponse: spoken,
+        lastIntent: result.interpretation.prediction.intent,
+        confidence: result.interpretation.confidence,
+        decision: result.interpretation.decision,
+      }));
+
+      if (result.skipped) return;
+
+      hapticTap(settingsStore.getState().hapticsEnabled);
+      if (spoken) speak(spoken, settingsStore.getState().confirmationSpeechEnabled);
+    } catch (error) {
+      const message = toUserMessage(error);
+      log.warn('utterance handling failed', error);
+      setState((previous) => ({ ...previous, status: 'listening', lastResponse: message }));
+      speak(message, settings.confirmationSpeechEnabled);
+    } finally {
+      processingRef.current = false;
+    }
+  }, []);
+
+  /** Every captured frame: feeds Adaptive Audio and the pre-roll buffer. */
+  const handleFrame = useCallback((frame: MicrophoneFrame) => {
+    if (!frame.speechActive) {
+      adaptiveAudio.processAmbientNoise(frame.dbfs, frame.durationMs);
+    }
+
+    const rolling = rollingRef.current;
+    rolling.frames.push({ pcm: frame.pcm, durationMs: frame.durationMs });
+    rolling.ms += frame.durationMs;
+    while (rolling.ms > PREROLL_MS && rolling.frames.length > 1) {
+      const removed = rolling.frames.shift();
+      rolling.ms -= removed?.durationMs ?? 0;
+    }
+
+    if (frame.speechActive) {
+      const utterance = utteranceRef.current;
+      // Seeded by the speech-start event; ignore frames before that.
+      if (utterance.ms === 0) return;
+      utterance.frames.push({ pcm: frame.pcm, durationMs: frame.durationMs });
+      utterance.ms += frame.durationMs;
+    }
+  }, []);
+
+  /** VAD events: seed the utterance with pre-roll, then commit it. */
+  const handleEvents = useCallback(
+    (events: VadEvent[], _frame: MicrophoneFrame) => {
+      for (const event of events) {
+        if (event.type === 'speech-start') {
+          const rolling = rollingRef.current;
+          utteranceRef.current = {
+            frames: [...rolling.frames],
+            ms: rolling.ms,
+          };
+          log.debug('speech started');
+          continue;
+        }
+
+        // speech-end
+        const utterance = utteranceRef.current;
+        utteranceRef.current = emptyBuffer();
+        rollingRef.current = emptyBuffer();
+
+        if (utterance.ms < MIN_UTTERANCE_MS) continue;
+
+        const pcm = concatFloat32(utterance.frames.map((entry) => entry.pcm));
+        log.debug(`speech ended after ${Math.round(utterance.ms)}ms (${pcm.length} samples)`);
+        void processUtterance(pcm, utterance.ms);
+      }
+    },
+    [processUtterance],
+  );
+
+  const microphone = useMicrophoneStream({ onFrame: handleFrame, onEvents: handleEvents });
+
+  const microphoneRef = useRef(microphone);
+  microphoneRef.current = microphone;
+
+  /** Keeps the adaptive engine in sync with the chosen profile. */
+  useEffect(() => {
+    adaptiveAudio.setProfile(settingsStore.getState().adaptiveAudioProfile);
+    adaptiveAudio.setStateListener((adaptive) => {
+      setState((previous) => ({
+        ...previous,
+        noiseZone: adaptive.zone,
+        ambientDbfs: adaptive.smoothedDbfs,
+      }));
+    });
+    return () => adaptiveAudio.setStateListener(undefined);
+  }, []);
+
+  const start = useCallback(async () => {
+    setState((previous) => ({
+      ...previous,
+      status: 'starting',
+      error: undefined,
+      lastResponse: undefined,
+      lastTranscript: undefined,
+    }));
+
+    if (sessionStore.getState().status !== 'connected') {
+      setState((previous) => ({
+        ...previous,
+        status: 'error',
+        error: 'Connect your Spotify account first.',
+      }));
+      return;
+    }
+
+    if (!libraryStore.getState().trackMap) {
+      setState((previous) => ({
+        ...previous,
+        status: 'error',
+        error: 'Select a playlist first.',
+      }));
+      return;
+    }
+
+    const settings = settingsStore.getState();
+
+    // Seed the context with the real Spotify state before listening.
+    try {
+      const playback = await playbackController.getState();
+      contextManager.setState({
+        isPlaying: playback?.is_playing ?? false,
+        volumePercent: playback?.device?.volume_percent ?? undefined,
+      });
+    } catch (error) {
+      log.debug('could not read the initial playback state', error);
+    }
+
+    adaptiveAudio.setEnabled(settings.adaptiveAudioEnabled);
+    contextManager.setState({
+      rideMode: true,
+      adaptiveAudio: settings.adaptiveAudioEnabled,
+    });
+
+    const started = await microphoneRef.current.start();
+    if (!started) {
+      adaptiveAudio.setEnabled(false);
+      contextManager.setState({ rideMode: false, adaptiveAudio: false });
+      setState((previous) => ({
+        ...previous,
+        status: 'error',
+        error: 'Microphone permission is required for Ride Mode.',
+      }));
+      return;
+    }
+
+    hapticDouble(settings.hapticsEnabled);
+    setState((previous) => ({
+      ...previous,
+      status: 'listening',
+      adaptiveAudioEnabled: settings.adaptiveAudioEnabled,
+    }));
+  }, []);
+
+  const stop = useCallback(() => {
+    microphoneRef.current.stop();
+    adaptiveAudio.setEnabled(false);
+    contextManager.setState({ rideMode: false, adaptiveAudio: false });
+    stopSpeaking();
+    setState((previous) => ({ ...previous, status: 'stopped', adaptiveAudioEnabled: false }));
+  }, []);
+
+  const submitManualCommand = useCallback(async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    setState((previous) => ({ ...previous, status: 'processing' }));
+
+    const interpretation = interpretCommand(trimmed, {
+      context: contextManager.getState(),
+      confidenceThreshold: settingsStore.getState().confidenceThreshold,
+    });
+
+    const outcome = await dispatchInterpretation(interpretation, {
+      controller: playbackController,
+      context: contextManager,
+      volumeStepPercent: settingsStore.getState().volumeStepPercent,
+    });
+
+    setState((previous) => ({
+      ...previous,
+      status: 'listening',
+      lastTranscript: trimmed,
+      lastResponse: outcome.spoken,
+      lastIntent: interpretation.prediction.intent,
+      confidence: interpretation.confidence,
+      decision: interpretation.decision,
+    }));
+
+    speak(outcome.spoken, settingsStore.getState().confirmationSpeechEnabled);
+  }, []);
+
+  // Never leave the microphone open when the screen goes away.
+  useEffect(
+    () => () => {
+      microphoneRef.current.stop();
+      adaptiveAudio.setEnabled(false);
+      stopSpeaking();
+      contextManager.setState({ rideMode: false, adaptiveAudio: false });
+    },
+    [],
+  );
+
+  return { state, start, stop, submitManualCommand };
+}

@@ -1,0 +1,187 @@
+{"text": "increase volume", "intent": "INCREASE_VOLUME"}
+{"text": "increase the volume", "intent": "INCREASE_VOLUME"}
+{"text": "volume up", "intent": "INCREASE_VOLUME"}
+{"text": "turn up the volume", "intent": "INCREASE_VOLUME"}
+{"text": "turn the music up", "intent": "INCREASE_VOLUME"}
+{"text": "turn it up", "intent": "INCREASE_VOLUME"}
+{"text": "make it louder", "intent": "INCREASE_VOLUME"}
+{"text": "make the music louder", "intent": "INCREASE_VOLUME"}
+{"text": "could you make the music a little louder", "intent": "INCREASE_VOLUME"}
+{"text": "raise the volume", "intent": "INCREASE_VOLUME"}
+{"text": "boost the volume", "intent": "INCREASE_VOLUME"}
+{"text": "crank it up", "intent": "INCREASE_VOLUME"}
+{"text": "volume higher", "intent": "INCREASE_VOLUME"}
+{"text": "louder please", "intent": "INCREASE_VOLUME"}
+{"text": "a bit louder", "intent": "INCREASE_VOLUME"}
+{"text": "i want it louder", "intent": "INCREASE_VOLUME"}
+{"text": "increase the music volume", "intent": "INCREASE_VOLUME"}
+{"text": "pump up the volume", "intent": "INCREASE_VOLUME"}
+{"text": "increse volum", "intent": "INCREASE_VOLUME"}
+{"text": "increase voluem", "intent": "INCREASE_VOLUME"}
+{"text": "make it loader", "intent": "INCREASE_VOLUME"}
+{"text": "turn the volume upp", "intent": "INCREASE_VOLUME"}
+{"text": "raize the volume", "intent": "INCREASE_VOLUME"}
+{"text": "decrease volume", "intent": "DECREASE_VOLUME"}
+{"text": "decrease the volume", "intent": "DECREASE_VOLUME"}
+{"text": "volume down", "intent": "DECREASE_VOLUME"}
+{"text": "turn down the volume", "intent": "DECREASE_VOLUME"}
+{"text": "turn the music down", "intent": "DECREASE_VOLUME"}
+{"text": "turn it down", "intent": "DECREASE_VOLUME"}
+{"text": "make it quieter", "intent": "DECREASE_VOLUME"}
+{"text": "make the music quieter", "intent": "DECREASE_VOLUME"}
+{"text": "lower the volume", "intent": "DECREASE_VOLUME"}
+{"text": "reduce the volume", "intent": "DECREASE_VOLUME"}
+{"text": "soften the volume", "intent": "DECREASE_VOLUME"}
+{"text": "volume lower", "intent": "DECREASE_VOLUME"}
+{"text": "quieter please", "intent": "DECREASE_VOLUME"}
+{"text": "turn it down a bit", "intent": "DECREASE_VOLUME"}
+{"text": "less volume", "intent": "DECREASE_VOLUME"}
+{"text": "drop the volume", "intent": "DECREASE_VOLUME"}
+{"text": "decrese volum", "intent": "DECREASE_VOLUME"}
+{"text": "decrease voluem", "intent": "DECREASE_VOLUME"}
+{"text": "make it quiter", "intent": "DECREASE_VOLUME"}
+{"text": "turn the music dowm", "intent": "DECREASE_VOLUME"}
+{"text": "lower the vol", "intent": "DECREASE_VOLUME"}
+{"text": "next song", "intent": "NEXT_SONG"}
+{"text": "next track", "intent": "NEXT_SONG"}
+{"text": "skip", "intent": "NEXT_SONG"}
+{"text": "skip this song", "intent": "NEXT_SONG"}
+{"text": "skip song", "intent": "NEXT_SONG"}
+{"text": "play the next track", "intent": "NEXT_SONG"}
+{"text": "go to the next song", "intent": "NEXT_SONG"}
+{"text": "next", "intent": "NEXT_SONG"}
+{"text": "next one", "intent": "NEXT_SONG"}
+{"text": "skip to the next song", "intent": "NEXT_SONG"}
+{"text": "forward", "intent": "NEXT_SONG"}
+{"text": "play next", "intent": "NEXT_SONG"}
+{"text": "next song please", "intent": "NEXT_SONG"}
+{"text": "nex song", "intent": "NEXT_SONG"}
+{"text": "skip this son", "intent": "NEXT_SONG"}
+{"text": "next trak", "intent": "NEXT_SONG"}
+{"text": "play next trak", "intent": "NEXT_SONG"}
+{"text": "skipp", "intent": "NEXT_SONG"}
+{"text": "previous song", "intent": "PREVIOUS_SONG"}
+{"text": "previous track", "intent": "PREVIOUS_SONG"}
+{"text": "go back", "intent": "PREVIOUS_SONG"}
+{"text": "play the previous track", "intent": "PREVIOUS_SONG"}
+{"text": "last song", "intent": "PREVIOUS_SONG"}
+{"text": "back one song", "intent": "PREVIOUS_SONG"}
+{"text": "previous", "intent": "PREVIOUS_SONG"}
+{"text": "go back one song", "intent": "PREVIOUS_SONG"}
+{"text": "go to the previous song", "intent": "PREVIOUS_SONG"}
+{"text": "previous track please", "intent": "PREVIOUS_SONG"}
+{"text": "rewind", "intent": "PREVIOUS_SONG"}
+{"text": "take me back a song", "intent": "PREVIOUS_SONG"}
+{"text": "previos song", "intent": "PREVIOUS_SONG"}
+{"text": "go bak", "intent": "PREVIOUS_SONG"}
+{"text": "previous trak", "intent": "PREVIOUS_SONG"}
+{"text": "prevous track", "intent": "PREVIOUS_SONG"}
+{"text": "pause", "intent": "PAUSE"}
+{"text": "pause the music", "intent": "PAUSE"}
+{"text": "pause music", "intent": "PAUSE"}
+{"text": "pause playback", "intent": "PAUSE"}
+{"text": "hold the music", "intent": "PAUSE"}
+{"text": "pause the song", "intent": "PAUSE"}
+{"text": "freeze", "intent": "PAUSE"}
+{"text": "pause it", "intent": "PAUSE"}
+{"text": "can you pause the music", "intent": "PAUSE"}
+{"text": "paws the music", "intent": "PAUSE"}
+{"text": "pause teh music", "intent": "PAUSE"}
+{"text": "resume", "intent": "RESUME"}
+{"text": "resume music", "intent": "RESUME"}
+{"text": "resume playback", "intent": "RESUME"}
+{"text": "continue", "intent": "RESUME"}
+{"text": "continue playing", "intent": "RESUME"}
+{"text": "keep playing", "intent": "RESUME"}
+{"text": "unpause", "intent": "RESUME"}
+{"text": "carry on", "intent": "RESUME"}
+{"text": "play it again from where we stopped", "intent": "RESUME"}
+{"text": "resume the music", "intent": "RESUME"}
+{"text": "resum", "intent": "RESUME"}
+{"text": "continew playing", "intent": "RESUME"}
+{"text": "continue playin", "intent": "RESUME"}
+{"text": "play", "intent": "PLAY"}
+{"text": "play music", "intent": "PLAY"}
+{"text": "play the music", "intent": "PLAY"}
+{"text": "start music", "intent": "PLAY"}
+{"text": "start the music", "intent": "PLAY"}
+{"text": "start playing", "intent": "PLAY"}
+{"text": "begin playback", "intent": "PLAY"}
+{"text": "play something", "intent": "PLAY"}
+{"text": "lets play music", "intent": "PLAY"}
+{"text": "plai", "intent": "PLAY"}
+{"text": "play musc", "intent": "PLAY"}
+{"text": "stop", "intent": "STOP"}
+{"text": "stop music", "intent": "STOP"}
+{"text": "stop the music", "intent": "STOP"}
+{"text": "stop playing", "intent": "STOP"}
+{"text": "end playback", "intent": "STOP"}
+{"text": "quit playing", "intent": "STOP"}
+{"text": "stop it", "intent": "STOP"}
+{"text": "stopp", "intent": "STOP"}
+{"text": "stop teh music", "intent": "STOP"}
+{"text": "stop musci", "intent": "STOP"}
+{"text": "play song number 7", "intent": "PLAY_SONG"}
+{"text": "play number seven", "intent": "PLAY_SONG"}
+{"text": "play the seventh song", "intent": "PLAY_SONG"}
+{"text": "play the seventh track", "intent": "PLAY_SONG"}
+{"text": "play track 7", "intent": "PLAY_SONG"}
+{"text": "track 7", "intent": "PLAY_SONG"}
+{"text": "song number 7", "intent": "PLAY_SONG"}
+{"text": "play the seventh one", "intent": "PLAY_SONG"}
+{"text": "play number 3", "intent": "PLAY_SONG"}
+{"text": "play song number five", "intent": "PLAY_SONG"}
+{"text": "play track 12", "intent": "PLAY_SONG"}
+{"text": "play the third song", "intent": "PLAY_SONG"}
+{"text": "play number 5", "intent": "PLAY_SONG"}
+{"text": "play the second track", "intent": "PLAY_SONG"}
+{"text": "play song 4", "intent": "PLAY_SONG"}
+{"text": "play track number seven", "intent": "PLAY_SONG"}
+{"text": "go to track 9", "intent": "PLAY_SONG"}
+{"text": "play the tenth song", "intent": "PLAY_SONG"}
+{"text": "play song number sevem", "intent": "PLAY_SONG"}
+{"text": "play the sevent song", "intent": "PLAY_SONG"}
+{"text": "play track sevn", "intent": "PLAY_SONG"}
+{"text": "play song number sevan", "intent": "PLAY_SONG"}
+{"text": "play song number heaven", "intent": "PLAY_SONG"}
+{"text": "what is the weather like", "intent": "UNKNOWN"}
+{"text": "call mom", "intent": "UNKNOWN"}
+{"text": "how are you", "intent": "UNKNOWN"}
+{"text": "set an alarm for six", "intent": "UNKNOWN"}
+{"text": "where are we going", "intent": "UNKNOWN"}
+{"text": "tell me a joke", "intent": "UNKNOWN"}
+{"text": "open the map", "intent": "UNKNOWN"}
+{"text": "what time is it", "intent": "UNKNOWN"}
+{"text": "turn on the headlights", "intent": "UNKNOWN"}
+{"text": "who is the artist", "intent": "UNKNOWN"}
+{"text": "add this to my library", "intent": "UNKNOWN"}
+{"text": "shuffle the playlist", "intent": "UNKNOWN"}
+{"text": "volume increase", "intent": "INCREASE_VOLUME"}
+{"text": "make the volume louder", "intent": "INCREASE_VOLUME"}
+{"text": "turn up the music please", "intent": "INCREASE_VOLUME"}
+{"text": "i cannot hear it louder", "intent": "INCREASE_VOLUME"}
+{"text": "boost the sound", "intent": "INCREASE_VOLUME"}
+{"text": "more volume", "intent": "INCREASE_VOLUME"}
+{"text": "increase the sound", "intent": "INCREASE_VOLUME"}
+{"text": "volume decrease", "intent": "DECREASE_VOLUME"}
+{"text": "make the volume quieter", "intent": "DECREASE_VOLUME"}
+{"text": "turn down the music please", "intent": "DECREASE_VOLUME"}
+{"text": "it is too loud quieter", "intent": "DECREASE_VOLUME"}
+{"text": "reduce the sound", "intent": "DECREASE_VOLUME"}
+{"text": "less loud", "intent": "DECREASE_VOLUME"}
+{"text": "decrease the sound", "intent": "DECREASE_VOLUME"}
+{"text": "turn the volume lower", "intent": "DECREASE_VOLUME"}
+{"text": "play the next one", "intent": "NEXT_SONG"}
+{"text": "skip ahead", "intent": "NEXT_SONG"}
+{"text": "go back to the last song", "intent": "PREVIOUS_SONG"}
+{"text": "play the last track", "intent": "PREVIOUS_SONG"}
+{"text": "play the playlist", "intent": "PLAY"}
+{"text": "pause the playback", "intent": "PAUSE"}
+{"text": "resume the song", "intent": "RESUME"}
+{"text": "stop the song", "intent": "STOP"}
+{"text": "play song number eleven", "intent": "PLAY_SONG"}
+{"text": "play the fifth song", "intent": "PLAY_SONG"}
+{"text": "play track 2", "intent": "PLAY_SONG"}
+{"text": "how far is the next stop", "intent": "UNKNOWN"}
+{"text": "read my messages", "intent": "UNKNOWN"}
+{"text": "cancel navigation", "intent": "UNKNOWN"}

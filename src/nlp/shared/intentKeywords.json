@@ -1,0 +1,40 @@
+{
+  "_comment": "Canonical vocabulary per intent. Used by the TypeScript rule/fuzzy baseline AND by the Python evaluation harness, so both measure the same knowledge base.",
+  "INCREASE_VOLUME": [
+    "increase volume", "increase the volume", "volume up", "turn up the volume",
+    "turn the music up", "turn it up", "make it louder", "make the music louder",
+    "louder", "raise the volume", "boost the volume", "crank it up", "volume higher"
+  ],
+  "DECREASE_VOLUME": [
+    "decrease volume", "decrease the volume", "volume down", "turn down the volume",
+    "turn the music down", "turn it down", "make it quieter", "make the music quieter",
+    "quieter", "lower the volume", "reduce the volume", "soften the volume", "volume lower"
+  ],
+  "PLAY": [
+    "play", "play music", "play the music", "start music", "start the music",
+    "start playing", "begin playback"
+  ],
+  "PAUSE": [
+    "pause", "pause music", "pause the music", "pause playback", "hold the music", "freeze"
+  ],
+  "RESUME": [
+    "resume", "resume music", "resume playback", "continue", "continue playing",
+    "keep playing", "unpause", "carry on"
+  ],
+  "NEXT_SONG": [
+    "next song", "next track", "skip", "skip this song", "skip song",
+    "play the next track", "go to the next song", "next"
+  ],
+  "PREVIOUS_SONG": [
+    "previous song", "previous track", "go back", "play the previous track",
+    "last song", "back one song", "go to the previous song", "previous"
+  ],
+  "PLAY_SONG": [
+    "play track 7", "play song number 7", "play number 7", "play the seventh song",
+    "play the seventh track", "track 7", "song number 7", "play the seventh one"
+  ],
+  "STOP": [
+    "stop", "stop music", "stop the music", "stop playing", "end playback", "quit playing"
+  ],
+  "UNKNOWN": []
+}

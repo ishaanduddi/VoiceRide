@@ -1,0 +1,52 @@
+{
+  "_comment": "Single source of truth for VoiceRiders text normalization. Consumed by src/nlp/preprocessing/synonyms.ts (TypeScript) and ml/nlp_reference.py (Python) so that training and on-device inference apply EXACTLY the same normalization.",
+  "stopWords": [
+    "a", "an", "the", "please", "could", "would", "can", "will", "you", "your",
+    "i", "me", "my", "we", "us", "just", "kind", "kinda", "sort", "sorta",
+    "some", "little", "bit", "uh", "um", "hey", "ok", "okay", "now",
+    "for", "of", "to", "at", "it", "that", "this", "is", "are", "be", "and",
+    "do", "let", "lets", "gonna", "want", "need"
+  ],
+  "tokenSynonyms": {
+    "louder": "increase",
+    "quieter": "decrease",
+    "softer": "decrease",
+    "skip": "next",
+    "advance": "next",
+    "forward": "next",
+    "back": "previous",
+    "backward": "previous",
+    "rewind": "previous",
+    "prev": "previous",
+    "continue": "resume",
+    "unpause": "resume",
+    "song": "track",
+    "songs": "track",
+    "tune": "track",
+    "tunes": "track",
+    "track": "track",
+    "tracks": "track",
+    "number": "",
+    "one": "1",
+    "ones": "1"
+  },
+  "phraseRewrites": [
+    ["\\bmake (it|the music|the volume|music|volume) (a lot )?louder\\b", "increase volume"],
+    ["\\bmake (it|the music|the volume|music|volume) (a lot )?quieter\\b", "decrease volume"],
+    ["\\bturn (it|the music|the volume|music|volume)? ?(up|higher)\\b", "increase volume"],
+    ["\\bturn (it|the music|the volume|music|volume)? ?(down|lower)\\b", "decrease volume"],
+    ["\\b(crank|bump|boost) (it )?up\\b", "increase volume"],
+    ["\\b(raise|increase) (the )?(volume|music|sound)\\b", "increase volume"],
+    ["\\b(lower|reduce|decrease|drop) (the )?(volume|music|sound)\\b", "decrease volume"],
+    ["\\bgo back( a song| one song| to the previous song)?\\b", "previous song"],
+    ["\\bskip (this |the )?(song|track)\\b", "next song"],
+    ["\\bplay (the )?next (song|track)\\b", "next song"],
+    ["\\bplay (the )?previous (song|track)\\b", "previous song"],
+    ["\\bgo to (the )?next (song|track)\\b", "next song"],
+    ["\\bcontinue (playing|the music|playback)\\b", "resume"],
+    ["\\bstart (the )?music\\b", "play"],
+    ["\\bstart playing\\b", "play"],
+    ["\\bstop the music\\b", "stop"],
+    ["\\bend playback\\b", "stop"]
+  ]
+}

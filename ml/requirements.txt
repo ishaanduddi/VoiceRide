@@ -1,0 +1,8 @@
+# Python dependencies for the VoiceRiders NLP evaluation harness.
+# Install with:  pip install -r ml/requirements.txt
+#
+# The mobile app itself needs NONE of these — it runs the exported model.json
+# with plain JavaScript. These packages are only for training/evaluation.
+
+scikit-learn>=1.4
+numpy>=1.26

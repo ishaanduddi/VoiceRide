@@ -1,0 +1,31 @@
+{
+  "quiet": {
+    "samples": 5,
+    "wer": 0.0,
+    "commandRecoveryRate": 1.0
+  },
+  "music": {
+    "samples": 5,
+    "wer": 0.0,
+    "commandRecoveryRate": 1.0
+  },
+  "wind": {
+    "samples": 5,
+    "wer": 0.5166666666666667,
+    "commandRecoveryRate": 1.0
+  },
+  "engine": {
+    "samples": 5,
+    "wer": 0.6666666666666667,
+    "commandRecoveryRate": 1.0
+  },
+  "traffic": {
+    "samples": 5,
+    "wer": 0.4166666666666667,
+    "commandRecoveryRate": 1.0
+  },
+  "overall": {
+    "samples": 25,
+    "wer": 0.32
+  }
+}

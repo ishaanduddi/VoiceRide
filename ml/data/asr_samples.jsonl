@@ -1,0 +1,25 @@
+{"environment": "quiet", "reference": "play song number seven", "hypothesis": "play song number seven", "intent": "PLAY_SONG"}
+{"environment": "quiet", "reference": "next song", "hypothesis": "next song", "intent": "NEXT_SONG"}
+{"environment": "quiet", "reference": "pause the music", "hypothesis": "pause the music", "intent": "PAUSE"}
+{"environment": "quiet", "reference": "increase volume", "hypothesis": "increase volume", "intent": "INCREASE_VOLUME"}
+{"environment": "quiet", "reference": "play the seventh track", "hypothesis": "play the seventh track", "intent": "PLAY_SONG"}
+{"environment": "music", "reference": "next song", "hypothesis": "next song", "intent": "NEXT_SONG"}
+{"environment": "music", "reference": "play song number seven", "hypothesis": "play song number seven", "intent": "PLAY_SONG"}
+{"environment": "music", "reference": "decrease volume", "hypothesis": "decrease volume", "intent": "DECREASE_VOLUME"}
+{"environment": "music", "reference": "resume", "hypothesis": "resume", "intent": "RESUME"}
+{"environment": "music", "reference": "previous track", "hypothesis": "previous track", "intent": "PREVIOUS_SONG"}
+{"environment": "wind", "reference": "next song", "hypothesis": "nex song", "intent": "NEXT_SONG"}
+{"environment": "wind", "reference": "increase volume", "hypothesis": "increse volum", "intent": "INCREASE_VOLUME"}
+{"environment": "wind", "reference": "play song number seven", "hypothesis": "play song number heaven", "intent": "PLAY_SONG"}
+{"environment": "wind", "reference": "pause the music", "hypothesis": "paws the music", "intent": "PAUSE"}
+{"environment": "wind", "reference": "go back", "hypothesis": "go bak", "intent": "PREVIOUS_SONG"}
+{"environment": "engine", "reference": "decrease volume", "hypothesis": "decrese volum", "intent": "DECREASE_VOLUME"}
+{"environment": "engine", "reference": "next song", "hypothesis": "next son", "intent": "NEXT_SONG"}
+{"environment": "engine", "reference": "play the seventh track", "hypothesis": "play the sevent trak", "intent": "PLAY_SONG"}
+{"environment": "engine", "reference": "resume", "hypothesis": "resum", "intent": "RESUME"}
+{"environment": "engine", "reference": "stop the music", "hypothesis": "stop teh music", "intent": "STOP"}
+{"environment": "traffic", "reference": "increase volume", "hypothesis": "increase voluem", "intent": "INCREASE_VOLUME"}
+{"environment": "traffic", "reference": "next track", "hypothesis": "next trak", "intent": "NEXT_SONG"}
+{"environment": "traffic", "reference": "play track number seven", "hypothesis": "play track number sevn", "intent": "PLAY_SONG"}
+{"environment": "traffic", "reference": "continue playing", "hypothesis": "continue playin", "intent": "RESUME"}
+{"environment": "traffic", "reference": "lower the volume", "hypothesis": "lower the vol", "intent": "DECREASE_VOLUME"}

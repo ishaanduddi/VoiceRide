@@ -30,8 +30,15 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files (may contain provider keys -- never commit)
+.env
 .env*.local
+
+# python / ML tooling
+__pycache__/
+*.py[cod]
+ml/.venv/
+ml/.venv*/
 
 # typescript
 *.tsbuildinfo
