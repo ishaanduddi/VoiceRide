@@ -66,6 +66,7 @@ render error is displayed as readable text on the device — screenshot it.
 | Symptom | Cause | Fix |
 |---|---|---|
 | App closes / blank screen with `Cannot read property 'X' of undefined` | A **class method passed unbound** to a hook (`useSyncExternalStore` calls `getSnapshot`/`subscribe` as bare functions) | Declare `getState`/`setState`/`subscribe` as **arrow-function class properties**, never prototype methods |
+| 403 when selecting a playlist; every playlist shows "0 tracks" | Spotify only exposes a playlist's items to its **owner or collaborators**, so playlists owned by others always 403. Separately, the count field was renamed `tracks.total` → `items.total` | Use a playlist **you created or collaborate on** (the app now marks the rest as unavailable and shows real counts) |
 | `FATAL EXCEPTION` right after navigating to a screen | A render-time exception; the `at <Component>` frame names the screen | Read the JS stack (see below) and fix that component |
 | "No Spotify client id found" / Connect disabled | `EXPO_PUBLIC_SPOTIFY_CLIENT_ID` missing from the **build** | `.env` is not uploaded to EAS; set it in `eas.json` → `build.<profile>.env` or `eas env:create`. Note `.env` must be read **statically** — see `src/config.ts` |
 | "Not configured" under *Redirect URI* | `EXPO_PUBLIC_SPOTIFY_REDIRECT_URI` missing from the build | Same as above |

@@ -104,7 +104,26 @@ While the app is in **Development Mode** it only works for allow-listed accounts
 Spotify account). Development Mode allows up to **25 users**. Someone who is not on the list sees an
 error during authorization no matter how correct the code is.
 
-## 6. Scopes requested
+## 6. Playlist access (important for Development Mode)
+
+Spotify restricts which playlists an app may read:
+
+> "This endpoint is only accessible for playlists **owned by the current user or playlists the user is
+> a collaborator of**. A **403 Forbidden** status code will be returned if the user is neither the owner
+> nor a collaborator of the playlist."
+> — [Get Playlist Items](https://developer.spotify.com/documentation/web-api/reference/get-playlists-items)
+
+In practice this means **editorial playlists and playlists owned by other people cannot be used** while
+the app is in Development Mode. VoiceRiders therefore shows those rows dimmed as *"Not available — you
+are not the owner"* and will not let you select them.
+
+**For testing and demos, create your own playlist** (or make an existing one collaborative) with 10–20
+tracks. That also gives you a known ordering, which is what "play song number 7" needs.
+
+Also note the playlist count field was renamed: `tracks.total` is deprecated and reports 0, while the
+live value is `items.total` (`src/spotify/playlistUtils.ts` handles both).
+
+## 7. Scopes requested
 
 VoiceRiders asks for the minimum needed:
 
@@ -118,7 +137,7 @@ user-modify-playback-state     play, pause, skip, volume
 user-read-currently-playing    current track
 ```
 
-## 7. Spotify Premium
+## 8. Spotify Premium
 
 Playback **control** (play/pause/skip/volume) requires a **Premium** account. With a free account,
 read endpoints work but `/me/player/*` mutations return `403`. The app surfaces this as

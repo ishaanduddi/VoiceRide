@@ -5,6 +5,7 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-nativ
 import { Banner } from '@/components/Banner';
 import { PlaylistRow } from '@/components/PlaylistRow';
 import { ScreenContainer } from '@/components/ScreenContainer';
+import { isPlaylistReadable } from '@/spotify/playlistUtils';
 import { libraryStore, loadPlaylists, selectPlaylist } from '@/state/libraryStore';
 import { useStore } from '@/state/observable';
 import { toUserMessage } from '@/utils/errors';
@@ -37,6 +38,17 @@ export default function PlaylistsScreen() {
     <ScreenContainer scroll={false}>
       <Banner tone="error" message={error ?? library.playlistsError} />
 
+      {library.unreadableCount > 0 ? (
+        <Banner
+          tone="warning"
+          message={
+            `Spotify only lets this app read playlists you own or collaborate on, so ` +
+            `${library.unreadableCount} of these cannot be used. Create a playlist with your own ` +
+            `songs (10-20 tracks is ideal for testing) and pick that one.`
+          }
+        />
+      ) : null}
+
       {library.playlistsLoading && library.playlists.length === 0 ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} />
@@ -53,13 +65,17 @@ export default function PlaylistsScreen() {
               No playlists found. Create one in Spotify, then pull this screen open again.
             </Text>
           }
-          renderItem={({ item }) => (
-            <PlaylistRow
-              playlist={item}
-              selected={item.id === library.selectedPlaylistId}
-              onPress={() => void handleSelect(item.id)}
-            />
-          )}
+          renderItem={({ item }) => {
+            const unavailable = !isPlaylistReadable(item, library.userId);
+            return (
+              <PlaylistRow
+                playlist={item}
+                selected={item.id === library.selectedPlaylistId}
+                unavailable={unavailable}
+                onPress={() => void handleSelect(item.id)}
+              />
+            );
+          }}
         />
       )}
 

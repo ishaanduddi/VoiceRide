@@ -34,7 +34,10 @@ export interface SpotifyPlaylist {
   uri: string;
   images: SpotifyImage[];
   owner?: { display_name?: string; id?: string };
-  tracks: { total: number };
+  /** Current item-count field. */
+  items?: { total: number };
+  /** @deprecated Spotify reports 0 here; use `items.total` (see playlistTrackCount). */
+  tracks?: { total: number };
   collaborative?: boolean;
 }
 

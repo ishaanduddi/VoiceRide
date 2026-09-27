@@ -3,10 +3,12 @@
 import { AppError, toUserMessage } from '@/utils/errors';
 import { createLogger } from '@/utils/logger';
 import { getPlaylistTrackItems, getUserPlaylists } from '@/spotify/api/playlists';
+import { isPlaylistReadable } from '@/spotify/playlistUtils';
 import {
   buildPlaylistTrackMap,
   type PlaylistTrackMap,
 } from '@/spotify/playback/playlistTrackMap';
+import { loadCachedProfile } from '@/spotify/auth/authService';
 import type { SpotifyPlaylist } from '@/spotify/types';
 
 import { contextManager } from './contextStore';
@@ -20,6 +22,16 @@ export interface LibraryState {
   playlistsLoading: boolean;
   playlistsError?: string;
 
+  /** Spotify user id of the connected account (used to judge readability). */
+  userId?: string;
+  /**
+   * How many loaded playlists cannot be read by this app.
+   *
+   * Spotify only exposes a playlist's items to its **owner or collaborators**,
+   * so playlists owned by others return 403 and cannot be used at all.
+   */
+  unreadableCount: number;
+
   selectedPlaylistId?: string;
   selectedPlaylistName?: string;
   trackMap: PlaylistTrackMap | null;
@@ -30,6 +42,7 @@ export interface LibraryState {
 export const libraryStore = new ObservableStore<LibraryState>({
   playlists: [],
   playlistsLoading: false,
+  unreadableCount: 0,
   trackMap: null,
   tracksLoading: false,
 });
@@ -41,13 +54,25 @@ export async function loadPlaylists(force = false): Promise<void> {
 
   libraryStore.setState({ playlistsLoading: true, playlistsError: undefined });
   try {
+    const profile = await loadCachedProfile().catch(() => null);
+    const userId = profile?.id;
+
     const playlists = await getUserPlaylists();
-    libraryStore.setState({ playlists, playlistsLoading: false });
+    const unreadableCount = playlists.filter(
+      (playlist) => !isPlaylistReadable(playlist, userId),
+    ).length;
+
+    libraryStore.setState({ playlists, playlistsLoading: false, userId, unreadableCount });
+
+    if (unreadableCount > 0) {
+      log.info(`${unreadableCount}/${playlists.length} playlists are not readable by this app`);
+    }
 
     // Restore the previously selected playlist.
     const lastPlaylistId = settingsStore.getState().lastPlaylistId;
     if (lastPlaylistId && !libraryStore.getState().selectedPlaylistId) {
-      if (playlists.some((playlist) => playlist.id === lastPlaylistId)) {
+      const previous = playlists.find((playlist) => playlist.id === lastPlaylistId);
+      if (previous && isPlaylistReadable(previous, userId)) {
         await selectPlaylist(lastPlaylistId).catch((error) =>
           log.warn('could not restore the previous playlist', error),
         );
@@ -103,6 +128,8 @@ export function clearLibrary(): void {
   libraryStore.setState({
     playlists: [],
     playlistsError: undefined,
+    userId: undefined,
+    unreadableCount: 0,
     selectedPlaylistId: undefined,
     selectedPlaylistName: undefined,
     trackMap: null,

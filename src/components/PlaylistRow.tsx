@@ -1,31 +1,51 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { playlistTrackCount } from '@/spotify/playlistUtils';
 import type { SpotifyPlaylist } from '@/spotify/types';
 import { colors, fontSize, radius, spacing } from '@/theme';
 
 export interface PlaylistRowProps {
   playlist: SpotifyPlaylist;
   selected?: boolean;
+  /**
+   * Spotify only exposes a playlist's items to its owner or collaborators, so
+   * some playlists cannot be used at all. They are shown but not tappable.
+   */
+  unavailable?: boolean;
   onPress: () => void;
 }
 
-export function PlaylistRow({ playlist, selected = false, onPress }: PlaylistRowProps) {
+export function PlaylistRow({
+  playlist,
+  selected = false,
+  unavailable = false,
+  onPress,
+}: PlaylistRowProps) {
+  const count = playlistTrackCount(playlist);
+
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, selected && styles.selected, pressed && styles.pressed]}
+      accessibilityState={{ disabled: unavailable }}
+      onPress={unavailable ? undefined : onPress}
+      style={({ pressed }) => [
+        styles.row,
+        selected && styles.selected,
+        unavailable && styles.unavailable,
+        pressed && !unavailable ? styles.pressed : null,
+      ]}
     >
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={[styles.name, unavailable && styles.dimmed]} numberOfLines={1}>
           {playlist.name}
         </Text>
         <Text style={styles.meta} numberOfLines={1}>
-          {playlist.tracks?.total ?? 0} tracks
-          {playlist.owner?.display_name ? ` · ${playlist.owner.display_name}` : ''}
+          {unavailable
+            ? 'Not available — you are not the owner'
+            : `${count} tracks${playlist.owner?.display_name ? ` · ${playlist.owner.display_name}` : ''}`}
         </Text>
       </View>
-      {selected ? <Text style={styles.check}>SELECTED</Text> : null}
+      {selected && !unavailable ? <Text style={styles.check}>SELECTED</Text> : null}
     </Pressable>
   );
 }
@@ -45,6 +65,10 @@ const styles = StyleSheet.create({
   selected: {
     borderColor: colors.primary,
   },
+  unavailable: {
+    opacity: 0.55,
+    borderStyle: 'dashed',
+  },
   pressed: {
     opacity: 0.85,
   },
@@ -56,6 +80,9 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: fontSize.md,
     fontWeight: '600',
+  },
+  dimmed: {
+    color: colors.textMuted,
   },
   meta: {
     color: colors.textMuted,
