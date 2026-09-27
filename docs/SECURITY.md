@@ -32,6 +32,17 @@ app                              Spotify
 git grep -n "client_secret\|clientSecret"    # only doc/API-shape references, no values
 ```
 
+### The relay that Spotify now requires
+
+Because Spotify enforces HTTPS redirect URIs, `relay/api/spotify-callback.js` receives the callback
+and forwards it to the app's custom scheme. It is deliberately **stateless and secret-free**:
+
+* it performs no token exchange — the `code_verifier` never leaves the device;
+* a forged request can only produce a redirect carrying arbitrary query parameters, which is useless
+  without the verifier, and the app verifies `state` before using the code;
+* it forwards only `code`, `state`, `error` and `error_description`, so it cannot be abused as a
+  general-purpose open redirect.
+
 ## 2. Token storage
 
 Access and refresh tokens are persisted only through `src/storage/secureStore.ts` →

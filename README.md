@@ -66,10 +66,14 @@ Set at minimum:
 
 ```env
 EXPO_PUBLIC_SPOTIFY_CLIENT_ID=your_public_client_id
+EXPO_PUBLIC_SPOTIFY_REDIRECT_URI=https://your-relay.vercel.app/api/spotify-callback
 ```
 
+The second value is not optional in practice: **Spotify requires an HTTPS redirect URI and rejects
+custom app schemes**, so the callback goes through the tiny relay in [`relay/`](relay/README.md)
+(one `npx vercel deploy --prod`). Full walkthrough: [`docs/SPOTIFY_SETUP.md`](docs/SPOTIFY_SETUP.md).
+
 > Never put a Spotify **client secret** anywhere in this project. PKCE means there isn't one.
-> Full walkthrough: [`docs/SPOTIFY_SETUP.md`](docs/SPOTIFY_SETUP.md).
 
 ### 3. Run
 
@@ -98,6 +102,8 @@ npm run ml:wer         # Word Error Rate per noise environment
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `EXPO_PUBLIC_SPOTIFY_CLIENT_ID` | yes | Public Spotify client id (not a secret) |
+| `EXPO_PUBLIC_SPOTIFY_REDIRECT_URI` | yes | HTTPS relay URL registered with Spotify (custom schemes are rejected) |
+| `EXPO_PUBLIC_SPOTIFY_APP_RETURN_URI` | no | Where the relay returns into the app; defaults to `voiceriders://spotify-callback` |
 | `EXPO_PUBLIC_SPOTIFY_MARKET` | no | ISO-3166 market code, e.g. `IN` |
 | `EXPO_PUBLIC_ASR_ENDPOINT` | no | Cloud STT for development; blank = ASR disabled |
 | `EXPO_PUBLIC_ASR_API_KEY` | no | **Not a secret** — see `docs/SECURITY.md` |
@@ -216,6 +222,7 @@ VoiceRiders/
 │   ├── storage/             # secure tokens + preferences
 │   └── utils/               # logger · errors · async
 ├── ml/                      # Python: dataset, training, evaluation, WER
+├── relay/                   # HTTPS OAuth relay Spotify now requires
 ├── docs/                    # architecture, setup, security, evaluation, roadmap
 └── assets/
 ```

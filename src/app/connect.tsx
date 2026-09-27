@@ -6,8 +6,8 @@ import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { ScreenContainer } from '@/components/ScreenContainer';
-import { isSpotifyConfigured, spotifyConfig } from '@/config';
-import { getSpotifyRedirectUri } from '@/spotify/auth/spotifyAuth';
+import { isRedirectConfigured, isSpotifyConfigured, spotifyConfig } from '@/config';
+import { getAppReturnUri, getSpotifyRedirectUri } from '@/spotify/auth/spotifyAuth';
 import { loadPlaylists } from '@/state/libraryStore';
 import { useStore } from '@/state/observable';
 import { connectSpotifyAccount, sessionStore } from '@/state/sessionStore';
@@ -19,8 +19,11 @@ export default function ConnectScreen() {
   const session = useStore(sessionStore);
   const [error, setError] = useState<string | undefined>(undefined);
 
-  const configured = isSpotifyConfigured();
+  const hasClientId = isSpotifyConfigured();
+  const hasRedirect = isRedirectConfigured();
+  const configured = hasClientId && hasRedirect;
   const busy = session.status === 'connecting';
+  const redirectUri = getSpotifyRedirectUri();
 
   const handleConnect = async () => {
     setError(undefined);
@@ -44,7 +47,7 @@ export default function ConnectScreen() {
         </Text>
       </Card>
 
-      {!configured ? (
+      {!hasClientId ? (
         <Banner
           tone="warning"
           message={
@@ -54,13 +57,21 @@ export default function ConnectScreen() {
         />
       ) : null}
 
-      <Card title="Add this Redirect URI in the Spotify dashboard">
-        <Text selectable style={styles.mono}>
-          {getSpotifyRedirectUri()}
-        </Text>
-        <Text style={styles.note}>
-          Scopes requested: {spotifyConfig.scopes.join(', ')}
-        </Text>
+      <Card
+        title="Redirect URI to register with Spotify"
+        subtitle="Spotify requires HTTPS and rejects custom app schemes, so this is the relay address."
+      >
+        {hasRedirect ? (
+          <Text selectable style={styles.mono}>
+            {redirectUri}
+          </Text>
+        ) : (
+          <Text style={styles.warning}>
+            {"Not configured. Deploy the relay in the repository's relay/ folder, register its URL in the Spotify dashboard, then set EXPO_PUBLIC_SPOTIFY_REDIRECT_URI. See docs/SPOTIFY_SETUP.md."}
+          </Text>
+        )}
+        <Text style={styles.note}>Scopes: {spotifyConfig.scopes.join(', ')}</Text>
+        <Text style={styles.note}>The app is returned via: {getAppReturnUri()}</Text>
       </Card>
 
       <Banner tone="error" message={error ?? session.error} />
@@ -89,6 +100,12 @@ const styles = StyleSheet.create({
   mono: {
     color: colors.accent,
     fontSize: fontSize.sm,
+    marginTop: spacing(0.5),
+  },
+  warning: {
+    color: colors.warning,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
     marginTop: spacing(0.5),
   },
   note: {

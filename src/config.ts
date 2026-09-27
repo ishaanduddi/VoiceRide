@@ -39,6 +39,17 @@ export const spotifyConfig = {
   authorizationEndpoint: 'https://accounts.spotify.com/authorize',
   tokenEndpoint: 'https://accounts.spotify.com/api/token',
   apiBase: 'https://api.spotify.com/v1',
+  /**
+   * HTTPS redirect URI registered in the Spotify dashboard.
+   *
+   * Spotify ENFORCES HTTPS redirect URIs (custom app schemes are rejected and
+   * `localhost` is not allowed), so on mobile this must point at a small relay
+   * that bounces the callback back to the app. See `relay/` and
+   * docs/SPOTIFY_SETUP.md.
+   */
+  redirectUri: readEnv('EXPO_PUBLIC_SPOTIFY_REDIRECT_URI'),
+  /** Where the relay returns into the app. Defaults to `<scheme>://spotify-callback`. */
+  appReturnUri: readEnv('EXPO_PUBLIC_SPOTIFY_APP_RETURN_URI'),
   /** Deep-link path appended to the app scheme: voiceriders://spotify-callback */
   redirectPath: 'spotify-callback',
   scheme: 'voiceriders',
@@ -51,6 +62,9 @@ export const asrConfig = {
 } as const;
 
 export const isSpotifyConfigured = (): boolean => spotifyConfig.clientId.length > 0;
+
+/** True when an HTTPS redirect URI (the relay) has been configured. */
+export const isRedirectConfigured = (): boolean => Boolean(spotifyConfig.redirectUri);
 
 export const isCloudAsrConfigured = (): boolean => Boolean(asrConfig.endpoint);
 
