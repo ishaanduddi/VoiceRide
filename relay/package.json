@@ -1,0 +1,12 @@
+{
+  "name": "voiceriders-oauth-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stateless HTTPS relay that lets the VoiceRiders mobile app complete Spotify's OAuth flow. Spotify requires an HTTPS redirect URI and rejects custom app schemes, so this endpoint receives the callback and bounces it back to voiceriders://spotify-callback.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "local": "node local-server.js"
+  }
+}

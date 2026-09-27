@@ -35,20 +35,22 @@ The relay stores nothing, has no secrets, and does not exchange tokens.
 
 ## Deploy it (free tier is fine)
 
-### Vercel
+> **Run these commands from the `relay/` directory, not the repository root.**
+> `relay/` is a self-contained project (its own `package.json`, no dependencies);
+> Vercel must treat *it* as the project root so that `api/spotify-callback.js`
+> becomes the serverless function.
 
 ```bash
-cd relay
+cd relay                      # <- from the repository root
+npx vercel login              # free account, no card required
 npx vercel deploy --prod
 ```
 
-* Put `api/spotify-callback.js` at the project root's `api/` folder (already laid out that way).
-* Set an environment variable in the Vercel project:
+No environment variables are required: the handler already defaults
+`APP_REDIRECT_URI` to `voiceriders://spotify-callback`, which matches the app's
+`scheme` in `app.json`. Set it on Vercel only if you change that scheme.
 
-| Variable | Example | Purpose |
-|----------|---------|---------|
-| `APP_REDIRECT_URI` | `voiceriders://spotify-callback` | Where to forward the callback |
-
+* `api/spotify-callback.js` is the function (the `api/` folder is already laid out that way).
 * Your redirect URI becomes:
   `https://<your-project>.vercel.app/api/spotify-callback`
 
@@ -60,8 +62,9 @@ Any HTTPS request handler works; the logic is the same 302. Netlify expects
 ## Local development
 
 ```bash
-node relay/local-server.js
-npx localtunnel --port 8787          # or: cloudflared tunnel --url http://localhost:8787
+cd relay
+npm run local                # http://localhost:8787
+npx localtunnel --port 8787  # or: cloudflared tunnel --url http://localhost:8787
 ```
 
 Use the printed `https://…` URL as your Spotify redirect URI and in `.env`.
