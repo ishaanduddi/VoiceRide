@@ -34,6 +34,10 @@ yarn-error.*
 .env
 .env*.local
 
+# vercel CLI project link (relay/). Contains org/project ids, not secrets,
+# but it is machine-specific and should not be committed.
+.vercel
+
 # python / ML tooling
 __pycache__/
 *.py[cod]
