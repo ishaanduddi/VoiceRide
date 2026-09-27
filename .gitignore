@@ -50,3 +50,6 @@ ml/.venv*/
 # generated native folders
 /ios
 /android
+
+# local bundle-verification output (see docs/ARCHITECTURE.md)
+.expo-export-check/

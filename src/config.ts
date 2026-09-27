@@ -1,33 +1,52 @@
 /**
  * Central runtime configuration.
  *
- * Values prefixed with EXPO_PUBLIC_ are inlined into the JavaScript bundle by
- * Expo at build time (see `.env.example`). This file deliberately contains NO
- * secrets: the Spotify **client secret is never used anywhere in this app**,
- * because authentication uses the OAuth 2.0 Authorization Code flow with PKCE
- * (public client). Access/refresh tokens live only in the OS keychain via
- * expo-secure-store.
+ * ⚠️ DO NOT refactor these into dynamic lookups such as `process.env[key]`.
+ *
+ * `babel-preset-expo` only inlines **statically written**
+ * `process.env.EXPO_PUBLIC_*` member expressions. A dynamic index (`env[key]`)
+ * is never substituted, so in a release build every value silently becomes
+ * `undefined` — which is exactly what hid the Spotify client id and the relay
+ * URL from the first APK. Keep the dotted form, one constant per variable.
+ *
+ * This file contains NO secrets: the Spotify client secret is never used
+ * anywhere (authentication is OAuth 2.0 + PKCE), and access/refresh tokens live
+ * only in the OS keychain via expo-secure-store.
  */
 
 import { Platform } from 'react-native';
 
-const rawEnv = process.env;
+// --- Static reads (required for build-time inlining) ------------------------
+const envSpotifyClientId = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID;
+const envSpotifyMarket = process.env.EXPO_PUBLIC_SPOTIFY_MARKET;
+const envSpotifyRedirectUri = process.env.EXPO_PUBLIC_SPOTIFY_REDIRECT_URI;
+const envSpotifyAppReturnUri = process.env.EXPO_PUBLIC_SPOTIFY_APP_RETURN_URI;
 
-function readEnv(key: string): string | undefined {
-  const value = rawEnv[key];
+const envAsrProvider = process.env.EXPO_PUBLIC_ASR_PROVIDER;
+const envAsrEndpoint = process.env.EXPO_PUBLIC_ASR_ENDPOINT;
+const envAsrApiKey = process.env.EXPO_PUBLIC_ASR_API_KEY;
+const envAsrModel = process.env.EXPO_PUBLIC_ASR_MODEL;
+
+const envWhisperModelUrl = process.env.EXPO_PUBLIC_WHISPER_MODEL_URL;
+const envWhisperModelFilename = process.env.EXPO_PUBLIC_WHISPER_MODEL_FILENAME;
+const envWhisperUseGpu = process.env.EXPO_PUBLIC_WHISPER_USE_GPU;
+const envWhisperMaxThreads = process.env.EXPO_PUBLIC_WHISPER_MAX_THREADS;
+
+/** Trims a value and treats an empty string as "not set". */
+function clean(value: string | undefined): string | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function readEnum<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
-  const value = readEnv(key);
-  return value && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
+function readEnum<T extends string>(value: string | undefined, allowed: readonly T[], fallback: T): T {
+  const cleaned = clean(value);
+  return cleaned && (allowed as readonly string[]).includes(cleaned) ? (cleaned as T) : fallback;
 }
 
-function readInt(key: string, fallback: number): number {
-  const value = Number(readEnv(key) ?? '');
-  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+function readInt(value: string | undefined, fallback: number): number {
+  const parsed = Number(clean(value) ?? '');
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
 /** Scopes required by the features implemented in this app. */
@@ -43,8 +62,8 @@ export const SPOTIFY_SCOPES = [
 
 export const spotifyConfig = {
   /** Public client id from https://developer.spotify.com/dashboard */
-  clientId: readEnv('EXPO_PUBLIC_SPOTIFY_CLIENT_ID') ?? '',
-  market: readEnv('EXPO_PUBLIC_SPOTIFY_MARKET'),
+  clientId: clean(envSpotifyClientId) ?? '',
+  market: clean(envSpotifyMarket),
   scopes: [...SPOTIFY_SCOPES],
   authorizationEndpoint: 'https://accounts.spotify.com/authorize',
   tokenEndpoint: 'https://accounts.spotify.com/api/token',
@@ -57,9 +76,9 @@ export const spotifyConfig = {
    * that bounces the callback back to the app. See `relay/` and
    * docs/SPOTIFY_SETUP.md.
    */
-  redirectUri: readEnv('EXPO_PUBLIC_SPOTIFY_REDIRECT_URI'),
+  redirectUri: clean(envSpotifyRedirectUri),
   /** Where the relay returns into the app. Defaults to `<scheme>://spotify-callback`. */
-  appReturnUri: readEnv('EXPO_PUBLIC_SPOTIFY_APP_RETURN_URI'),
+  appReturnUri: clean(envSpotifyAppReturnUri),
   /** Deep-link path appended to the app scheme: voiceriders://spotify-callback */
   redirectPath: 'spotify-callback',
   scheme: 'voiceriders',
@@ -77,22 +96,22 @@ export const asrConfig = {
    *   cloud     - POST each utterance to EXPO_PUBLIC_ASR_ENDPOINT
    *   off       - disable recognition
    */
-  provider: readEnum<AsrProviderPreference>('EXPO_PUBLIC_ASR_PROVIDER', ASR_PREFERENCES, 'auto'),
-  endpoint: readEnv('EXPO_PUBLIC_ASR_ENDPOINT'),
-  apiKey: readEnv('EXPO_PUBLIC_ASR_API_KEY'),
-  model: readEnv('EXPO_PUBLIC_ASR_MODEL') ?? 'whisper-1',
+  provider: readEnum<AsrProviderPreference>(envAsrProvider, ASR_PREFERENCES, 'auto'),
+  endpoint: clean(envAsrEndpoint),
+  apiKey: clean(envAsrApiKey),
+  model: clean(envAsrModel) ?? 'whisper-1',
 } as const;
 
 /** On-device whisper.cpp configuration (see docs/ON_DEVICE_ASR.md). */
 export const whisperConfig = {
   /** GGML model downloaded at runtime; never bundled in the repository. */
   modelUrl:
-    readEnv('EXPO_PUBLIC_WHISPER_MODEL_URL') ??
+    clean(envWhisperModelUrl) ??
     'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin',
-  modelFilename: readEnv('EXPO_PUBLIC_WHISPER_MODEL_FILENAME') ?? 'ggml-tiny.en.bin',
+  modelFilename: clean(envWhisperModelFilename) ?? 'ggml-tiny.en.bin',
   /** GPU (iOS Core ML / Metal, Android Vulkan + Hexagon NPU when available). */
-  useGpu: readEnv('EXPO_PUBLIC_WHISPER_USE_GPU') !== 'false',
-  maxThreads: readInt('EXPO_PUBLIC_WHISPER_MAX_THREADS', 4),
+  useGpu: clean(envWhisperUseGpu) !== 'false',
+  maxThreads: readInt(envWhisperMaxThreads, 4),
 } as const;
 
 export const isSpotifyConfigured = (): boolean => spotifyConfig.clientId.length > 0;
