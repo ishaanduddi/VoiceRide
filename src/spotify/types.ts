@@ -47,11 +47,14 @@ export interface SpotifyPaging<T> {
   items: T[];
 }
 
-/** A raw entry from `/playlists/{id}/tracks` (may wrap a null/episode item). */
+/** A raw entry from a playlist items response (may wrap a null/episode item). */
 export interface PlaylistTrackItem {
   added_at?: string;
   is_local?: boolean;
-  track: SpotifyTrack | null;
+  /** Current field name on `/playlists/{id}/items`. */
+  item?: SpotifyTrack | null;
+  /** Deprecated alias still returned by the old `/tracks` endpoint. */
+  track?: SpotifyTrack | null;
 }
 
 export interface SpotifyUserProfile {

@@ -46,9 +46,10 @@ export function buildPlaylistTrackMap(
   const entries: TrackEntry[] = [];
 
   items.forEach((item, rawIndex) => {
-    const track = item?.track;
+    // `item` is the current field name; `track` is the deprecated alias.
+    const track = item?.item ?? item?.track;
     // Local files and removed tracks cannot be played through the Web API.
-    if (!track || !track.id || !track.uri || item.is_local) return;
+    if (!track || !track.id || !track.uri || item?.is_local) return;
 
     entries.push({
       displayIndex: entries.length + 1,

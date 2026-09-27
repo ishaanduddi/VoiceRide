@@ -51,7 +51,7 @@ function safeJson(text: string): unknown {
   }
 }
 
-function errorFromResponse(status: number, payload: unknown): Error {
+function errorFromResponse(status: number, payload: unknown, path: string): Error {
   const body = payload as { error?: { status?: number; message?: string; reason?: string } } | undefined;
   const message = body?.error?.message ?? `Spotify request failed (HTTP ${status}).`;
   const reason = body?.error?.reason;
@@ -59,8 +59,17 @@ function errorFromResponse(status: number, payload: unknown): Error {
   if (status === 401) return new SpotifyAuthError(message);
   if (status === 403) {
     if (/premium/i.test(message)) return new PremiumRequiredError(message);
-    if (/(restricted|not available)/i.test(message)) {
-      return new SpotifyApiError(status, message, reason);
+
+    // Spotify returns 403 when a token/app may not access a resource. For
+    // playlists this usually means the app (Development Mode) cannot read that
+    // particular playlist — e.g. one owned by someone else.
+    if (path.startsWith('/playlists')) {
+      return new SpotifyApiError(
+        status,
+        'Spotify refused access to this playlist (403). Apps in Development Mode cannot read every ' +
+          'playlist — try one that you created yourself.',
+        reason,
+      );
     }
     return new SpotifyApiError(status, message, reason);
   }
@@ -114,7 +123,7 @@ async function execute<T>(
   const text = await response.text();
   const payload = text ? safeJson(text) : undefined;
 
-  if (!response.ok) throw errorFromResponse(response.status, payload);
+  if (!response.ok) throw errorFromResponse(response.status, payload, path);
 
   return payload as T;
 }
