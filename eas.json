@@ -9,12 +9,18 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SPOTIFY_REDIRECT_URI": "https://voiceriders-oauth-relay.vercel.app/api/spotify-callback"
       }
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SPOTIFY_REDIRECT_URI": "https://voiceriders-oauth-relay.vercel.app/api/spotify-callback"
       }
     },
     "production": {
