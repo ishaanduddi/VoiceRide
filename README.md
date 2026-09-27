@@ -364,6 +364,7 @@ voice control where it is legal and safe to do so.
 | [`docs/SECURITY.md`](docs/SECURITY.md) | PKCE, token storage, secret handling |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | Datasets, metrics, how to reproduce/extend |
 | [`docs/ON_DEVICE_ASR.md`](docs/ON_DEVICE_ASR.md) | Offline Whisper: dev build, models, tuning |
+| [`docs/STORE_LISTING.md`](docs/STORE_LISTING.md) | Spotify app form + Play/App Store copy |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phases 9–10: dev builds, device testing, store release |
 
 ## Contributing (group members)
