@@ -24,6 +24,23 @@ cd C:\platform-tools
 
 Send the output rather than a description — it names the failing component and line.
 
+### Reading a JavaScript crash
+
+A React Native JS crash appears twice: as an `AndroidRuntime` fatal exception, and in the
+`am_crash` event. The useful parts are the message, the `at <Component>` frames and the final
+`stack:` lines, which name the function that actually threw:
+
+```
+E/AndroidRuntime: FATAL EXCEPTION: mqt_v_native
+E/AndroidRuntime: com.facebook.react.common.JavascriptException: TypeError: Cannot read property 'state' of undefined
+E/AndroidRuntime:     at HomeScreen (address at index.android.bundle:1:1043188)   <- which screen
+E/AndroidRuntime: getState@1:987748                                              <- which function
+E/AndroidRuntime: useSyncExternalStore@1:532012
+E/AndroidRuntime: useAppContext@1:986849
+```
+
+(`index.android.bundle:1:NNNN` offsets are not source lines; the **names** are what identify the code.)
+
 ### A development build — Metro streams the logs
 
 Development builds print JS logs, including full stack traces, to the terminal that
@@ -48,6 +65,8 @@ render error is displayed as readable text on the device — screenshot it.
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| App closes / blank screen with `Cannot read property 'X' of undefined` | A **class method passed unbound** to a hook (`useSyncExternalStore` calls `getSnapshot`/`subscribe` as bare functions) | Declare `getState`/`setState`/`subscribe` as **arrow-function class properties**, never prototype methods |
+| `FATAL EXCEPTION` right after navigating to a screen | A render-time exception; the `at <Component>` frame names the screen | Read the JS stack (see below) and fix that component |
 | "No Spotify client id found" / Connect disabled | `EXPO_PUBLIC_SPOTIFY_CLIENT_ID` missing from the **build** | `.env` is not uploaded to EAS; set it in `eas.json` → `build.<profile>.env` or `eas env:create`. Note `.env` must be read **statically** — see `src/config.ts` |
 | "Not configured" under *Redirect URI* | `EXPO_PUBLIC_SPOTIFY_REDIRECT_URI` missing from the build | Same as above |
 | Browser: `INVALID_CLIENT: Invalid redirect URI` | Redirect URI not registered, or not byte-identical | Copy the value the Connect screen prints into Spotify → Settings → Redirect URIs (no trailing slash) |

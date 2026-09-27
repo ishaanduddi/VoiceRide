@@ -22,21 +22,28 @@ export class AppContextManager {
     this.state = { ...INITIAL_CONTEXT, ...initial };
   }
 
-  getState(): AppContext {
-    return this.state;
-  }
+  /*
+   * These MUST be arrow-function class properties, not prototype methods.
+   *
+   * `useSyncExternalStore` calls `getSnapshot`/`subscribe` as bare functions, so
+   * a prototype method would receive `this === undefined` and throw
+   * "Cannot read property 'state' of undefined" during render — which is exactly
+   * what crashed every screen that uses `useAppContext()`.
+   */
 
-  setState(patch: Partial<AppContext>): void {
+  getState = (): AppContext => this.state;
+
+  setState = (patch: Partial<AppContext>): void => {
     this.state = { ...this.state, ...patch };
     for (const listener of this.listeners) listener(this.state);
-  }
+  };
 
-  subscribe(listener: ContextListener): () => void {
+  subscribe = (listener: ContextListener): (() => void) => {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
     };
-  }
+  };
 
   reset(): void {
     this.setState({ ...INITIAL_CONTEXT });
