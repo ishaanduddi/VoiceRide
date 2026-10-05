@@ -14,6 +14,7 @@ import { useRideMode, type RideStatus } from '@/ride/useRideMode';
 import { useAppContext } from '@/state/contextStore';
 import { libraryStore } from '@/state/libraryStore';
 import { useStore } from '@/state/observable';
+import { sessionStore } from '@/state/sessionStore';
 import { settingsStore } from '@/state/settingsStore';
 import { describeAsrEngine } from '@/voice/asr';
 import { colors, fontSize, spacing } from '@/theme';
@@ -38,9 +39,10 @@ const STATUS_TONE: Record<RideStatus, PillTone> = {
 
 export default function RideModeScreen() {
   const router = useRouter();
-  const { state, start, stop, submitManualCommand } = useRideMode();
+  const { state, activeDevice, start, stop, submitManualCommand } = useRideMode();
   const library = useStore(libraryStore);
   const settings = useStore(settingsStore);
+  const session = useStore(sessionStore);
   const context = useAppContext();
 
   // Ride Mode is entered and left with this screen.
@@ -67,6 +69,16 @@ export default function RideModeScreen() {
 
       <Banner tone="error" message={state.error} />
 
+      {session.product === 'free' ? (
+        <Banner
+          tone="error"
+          message={
+            'This Spotify account is on the Free tier. Spotify rejects playback and volume control with ' +
+            'HTTP 403 for Free accounts, so no voice command can change the music. Connect a Premium account.'
+          }
+        />
+      ) : null}
+
       <Card title={library.selectedPlaylistName ?? 'No playlist'}>
         <Row label="Tracks" value={`${library.trackMap?.entries.length ?? 0}`} />
         <Row label="Current track" value={context.currentTrackName ?? '—'} />
@@ -76,6 +88,17 @@ export default function RideModeScreen() {
           value={context.volumePercent !== undefined ? `${context.volumePercent}%` : 'unknown'}
         />
         <Row label="Engine" value={describeAsrEngine()} />
+        <Row label="Device" value={activeDevice?.name ?? 'none active'} />
+        <Row
+          label="App volume control"
+          value={
+            activeDevice
+              ? activeDevice.supportsVolume === false
+                ? 'not supported on this device'
+                : 'supported'
+              : 'unknown'
+          }
+        />
       </Card>
 
       {state.adaptiveAudioEnabled ? (

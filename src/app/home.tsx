@@ -43,6 +43,16 @@ export default function HomeScreen() {
 
       <Banner tone="error" message={library.playlistsError ?? library.tracksError ?? session.error} />
 
+      {session.product === 'free' ? (
+        <Banner
+          tone="warning"
+          message={
+            'This Spotify account is on the Free tier. Spotify only permits playback and volume control on ' +
+            'Premium accounts, so voice commands will be rejected with HTTP 403.'
+          }
+        />
+      ) : null}
+
       <Card title="Selected playlist" subtitle="Commands like “play number 7” use this playlist.">
         <Text style={styles.playlistName}>
           {library.selectedPlaylistName ?? 'No playlist selected yet'}

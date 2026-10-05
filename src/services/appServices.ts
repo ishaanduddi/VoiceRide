@@ -24,6 +24,9 @@ import { settingsStore } from '@/state/settingsStore';
  */
 export const playbackController = createPlaybackController({
   getTarget: () => libraryStore.getState().trackMap,
+  // Fall back to the last volume we saw when Spotify omits it, so a relative
+  // command is not computed from an invented default.
+  getKnownVolumePercent: () => contextManager.getState().volumePercent,
   onVolumeChanged: (volumePercent, source) => {
     contextManager.setState({ volumePercent });
     if (source === 'voice' || source === 'programmatic') {

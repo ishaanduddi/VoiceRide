@@ -76,8 +76,17 @@ const emptyBuffer = (): FrameBuffer => ({
   maxDbfs: Number.NEGATIVE_INFINITY,
 });
 
+export interface ActiveDeviceInfo {
+  name: string;
+  volumePercent?: number;
+  /** Spotify lets a client change this device's volume. */
+  supportsVolume?: boolean;
+}
+
 export interface UseRideModeResult {
   state: RideState;
+  /** The Spotify device playback is on — shown so volume problems are obvious. */
+  activeDevice?: ActiveDeviceInfo;
   start: () => Promise<void>;
   stop: () => void;
   /** Dev/testing path that bypasses the microphone and ASR. */
@@ -96,6 +105,26 @@ export function useRideMode(): UseRideModeResult {
   const processingRef = useRef(false);
   const refractoryUntilRef = useRef(0);
   const lastSpokenRef = useRef<{ text: string; at: number } | null>(null);
+
+  const [activeDevice, setActiveDevice] = useState<ActiveDeviceInfo | undefined>(undefined);
+
+  /** Reads which device playback is on, so the UI can explain volume problems. */
+  const refreshDevice = useCallback(async () => {
+    try {
+      const playback = await playbackController.getState();
+      setActiveDevice(
+        playback?.device
+          ? {
+              name: playback.device.name,
+              volumePercent: playback.device.volume_percent ?? undefined,
+              supportsVolume: playback.device.supports_volume,
+            }
+          : undefined,
+      );
+    } catch (error) {
+      log.debug('could not read the active device', error);
+    }
+  }, []);
 
   /**
    * Speaks a line, suppressing immediate repeats.
@@ -148,6 +177,13 @@ export function useRideMode(): UseRideModeResult {
 
       hapticTap(settingsStore.getState().hapticsEnabled);
       say(spoken);
+
+      // A volume command is the one case where the device can silently ignore
+      // us, so re-read the device afterwards to keep the screen honest.
+      const intent = result.interpretation.prediction.intent;
+      if (intent === 'INCREASE_VOLUME' || intent === 'DECREASE_VOLUME') {
+        void refreshDevice();
+      }
     } catch (error) {
       const message = toUserMessage(error);
       log.warn('utterance handling failed', error);
@@ -156,7 +192,7 @@ export function useRideMode(): UseRideModeResult {
     } finally {
       processingRef.current = false;
     }
-  }, [say]);
+  }, [refreshDevice, say]);
 
   /** Every captured frame: feeds Adaptive Audio and the pre-roll buffer. */
   const handleFrame = useCallback((frame: MicrophoneFrame) => {
@@ -288,6 +324,7 @@ export function useRideMode(): UseRideModeResult {
         isPlaying: playback?.is_playing ?? false,
         volumePercent: playback?.device?.volume_percent ?? undefined,
       });
+      await refreshDevice();
     } catch (error) {
       log.debug('could not read the initial playback state', error);
     }
@@ -316,7 +353,7 @@ export function useRideMode(): UseRideModeResult {
       status: 'listening',
       adaptiveAudioEnabled: settings.adaptiveAudioEnabled,
     }));
-  }, []);
+  }, [refreshDevice]);
 
   const stop = useCallback(() => {
     microphoneRef.current.stop();
@@ -367,5 +404,5 @@ export function useRideMode(): UseRideModeResult {
     [],
   );
 
-  return { state, start, stop, submitManualCommand };
+  return { state, activeDevice, start, stop, submitManualCommand };
 }

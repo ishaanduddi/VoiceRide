@@ -77,6 +77,12 @@ export interface SpotifyDevice {
   name: string;
   type: string;
   volume_percent: number | null;
+  /**
+   * Whether Spotify lets a client change this device's volume.
+   * Some devices (TVs, some speakers) report `false`, in which case
+   * `PUT /me/player/volume` is accepted but has no effect.
+   */
+  supports_volume?: boolean;
 }
 
 export interface SpotifyPlaybackState {

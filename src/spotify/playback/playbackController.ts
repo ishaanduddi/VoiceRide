@@ -34,6 +34,11 @@ export interface PlaybackControllerDeps {
    * treat a manual/voice change as the new baseline instead of fighting it.
    */
   onVolumeChanged?: (volumePercent: number, source: VolumeSource) => void;
+  /**
+   * Last volume we know about. Used when Spotify omits `volume_percent`, so a
+   * relative command is not computed from a made-up default.
+   */
+  getKnownVolumePercent?: () => number | undefined;
 }
 
 export interface VolumeChange {
@@ -121,12 +126,30 @@ export class SpotifyPlaybackController {
 
   private async currentVolumePercent(): Promise<number> {
     const state = await this.getState().catch(() => null);
-    return state?.device?.volume_percent ?? DEFAULT_VOLUME_PERCENT;
+    return (
+      state?.device?.volume_percent ??
+      this.deps.getKnownVolumePercent?.() ??
+      DEFAULT_VOLUME_PERCENT
+    );
   }
 
   /** Relative volume change, e.g. +5 or -5 percentage points. */
   async changeVolumeBy(delta: number, source: VolumeSource = 'voice'): Promise<VolumeChange> {
-    const previousPercent = await this.currentVolumePercent();
+    const state = await this.getState().catch(() => null);
+
+    // A device that advertises `supports_volume: false` accepts the request and
+    // silently ignores it. Say so instead of pretending it worked.
+    if (state?.device && state.device.supports_volume === false) {
+      throw new AppError(
+        'SPOTIFY_PLAYBACK_UNAVAILABLE',
+        `Spotify is playing on "${state.device.name}", which does not support volume control from the app. ` +
+          'Play on this phone, or use the device\'s own volume buttons.',
+      );
+    }
+
+    const previousPercent =
+      state?.device?.volume_percent ?? this.deps.getKnownVolumePercent?.() ?? DEFAULT_VOLUME_PERCENT;
+
     return this.setVolumeAbsolute(previousPercent + delta, source, previousPercent);
   }
 
@@ -140,6 +163,23 @@ export class SpotifyPlaybackController {
     const target = clamp(Math.round(percent), MIN_VOLUME_PERCENT, MAX_VOLUME_PERCENT);
 
     await this.withDevice(() => playbackApi.setVolume(target));
+
+    /*
+     * Verify it actually took effect. Some devices accept
+     * `PUT /me/player/volume` and ignore it, which otherwise looks exactly like
+     * "the command did nothing". Only a number that disagrees is treated as a
+     * failure - a missing value just means the device does not report volume.
+     */
+    const after = await this.getState().catch(() => null);
+    const reported = after?.device?.volume_percent;
+    if (typeof reported === 'number' && Math.abs(reported - target) > 2) {
+      throw new AppError(
+        'SPOTIFY_PLAYBACK_UNAVAILABLE',
+        `Spotify accepted the volume change but "${after?.device?.name ?? 'the device'}" still reports ` +
+          `${reported}% (asked for ${target}%), so it does not apply app volume control.`,
+      );
+    }
+
     this.deps.onVolumeChanged?.(target, source);
 
     return { previousPercent, volumePercent: target, appliedDelta: target - previousPercent };
