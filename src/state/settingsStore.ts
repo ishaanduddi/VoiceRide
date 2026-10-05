@@ -2,6 +2,7 @@
 
 import {
   DEFAULT_PREFERENCES,
+  PREFERENCES_VERSION,
   loadPreferences,
   savePreferences,
   type Preferences,
@@ -27,6 +28,7 @@ export async function updateSettings(patch: Partial<Preferences>): Promise<void>
   const next: SettingsState = { ...settingsStore.getState(), ...patch, loaded: true };
   settingsStore.setState(patch);
   await savePreferences({
+    preferencesVersion: PREFERENCES_VERSION,
     adaptiveAudioEnabled: next.adaptiveAudioEnabled,
     confirmationSpeechEnabled: next.confirmationSpeechEnabled,
     hapticsEnabled: next.hapticsEnabled,

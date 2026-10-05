@@ -24,9 +24,9 @@ import {
 
 const VOLUME_STEPS = [1, 5, 10];
 const CONFIDENCE_OPTIONS: { label: string; value: number }[] = [
-  { label: 'Lenient 0.60', value: 0.6 },
-  { label: 'Default 0.72', value: 0.72 },
-  { label: 'Strict 0.85', value: 0.85 },
+  { label: 'Lenient 0.50', value: 0.5 },
+  { label: 'Default 0.60', value: 0.6 },
+  { label: 'Strict 0.75', value: 0.75 },
 ];
 const PROFILES: { label: string; value: 'conservative' | 'balanced' | 'aggressive' }[] = [
   { label: 'Gentle', value: 'conservative' },

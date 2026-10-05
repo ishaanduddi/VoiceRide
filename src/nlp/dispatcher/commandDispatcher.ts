@@ -27,10 +27,16 @@ export interface DispatchDeps {
 export interface DispatchOutcome {
   ok: boolean;
   intent: Intent;
-  /** Sentence to speak/display. */
+  /** Sentence to speak/display. Empty string means "stay silent". */
   spoken: string;
   error?: string;
 }
+
+/**
+ * Below this confidence a rejection is assumed to be noise rather than a failed
+ * command, and nothing is spoken.
+ */
+const NOISE_FLOOR_CONFIDENCE = 0.35;
 
 export async function dispatchInterpretation(
   interpretation: Interpretation,
@@ -50,10 +56,26 @@ export async function dispatchInterpretation(
 
   // Low confidence: never execute blindly.
   if (interpretation.decision !== 'execute') {
-    const spoken =
-      interpretation.decision === 'confirm' ? responses.confirm : responses.lowConfidence;
+    /*
+     * Noise, music and coughs land here constantly while riding. Announcing
+     * "sorry, I didn't catch that" for every one of them is worse than staying
+     * quiet, so only speak when there is evidence a real command was attempted:
+     * something other than UNKNOWN was recognised, with a non-trivial score.
+     */
+    const attemptedCommand =
+      intent !== 'UNKNOWN' && interpretation.confidence >= NOISE_FLOOR_CONFIDENCE;
+
+    const spoken = !attemptedCommand
+      ? ''
+      : interpretation.decision === 'confirm'
+        ? responses.confirm
+        : responses.lowConfidence;
+
     mark();
-    log.info(`rejected ${intent} (${interpretation.confidence.toFixed(2)})`);
+    log.info(
+      `rejected ${intent} (${interpretation.confidence.toFixed(2)})` +
+        (spoken ? '' : ' - silent (treated as noise)'),
+    );
     return { ok: false, intent, spoken };
   }
 

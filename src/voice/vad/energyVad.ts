@@ -30,15 +30,22 @@ export interface VadConfig {
 }
 
 export const DEFAULT_VAD_CONFIG: VadConfig = {
-  startThresholdDb: 8,
-  endThresholdDb: 4,
-  minSpeechMs: 120,
-  minSilenceMs: 500,
-  maxUtteranceMs: 8000,
-  noiseFloorAdaptation: 0.05,
+  /**
+   * Raised from 8 dB: with music or engine drone present, a low margin let
+   * steady background audio trip the detector and get sent to ASR as "speech".
+   */
+  startThresholdDb: 10,
+  endThresholdDb: 5,
+  /** Speech must persist this long before an utterance opens. */
+  minSpeechMs: 250,
+  minSilenceMs: 600,
+  maxUtteranceMs: 6000,
+  /** Adapt faster, so loud music raises the floor instead of triggering. */
+  noiseFloorAdaptation: 0.08,
   initialNoiseFloorDb: -50,
   minNoiseFloorDb: -70,
-  maxNoiseFloorDb: -25,
+  /** Allow the floor to track loud playback (phone speaker) upward. */
+  maxNoiseFloorDb: -20,
 };
 
 export type VadEvent =

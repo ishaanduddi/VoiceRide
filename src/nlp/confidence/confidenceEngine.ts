@@ -19,7 +19,9 @@ import {
   CONFIDENCE_WEIGHTS,
   CONFIRM_THRESHOLD,
   DEFAULT_ASR_CONFIDENCE,
+  EXECUTE_THRESHOLD,
   MIN_MARGIN,
+  MIN_RUNNER_UP_SCORE,
 } from './config';
 
 export interface ConfidenceInput {
@@ -85,7 +87,13 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
   const second = ranked[1];
   if (top && second) {
     const margin = top.score - second.score;
-    if (margin < MIN_MARGIN && isConfusablePair(top.intent, second.intent)) {
+    // Only a genuine contest counts: if the runner-up is weak, this is noise or
+    // an unrecognised phrase, not an ambiguous command.
+    if (
+      margin < MIN_MARGIN &&
+      second.score >= MIN_RUNNER_UP_SCORE &&
+      isConfusablePair(top.intent, second.intent)
+    ) {
       confidence *= AMBIGUITY_PENALTY;
       reasons.push(
         `ambiguous between ${top.intent} and ${second.intent} (margin ${margin.toFixed(2)}) -> penalised`,
@@ -101,7 +109,7 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
 
   confidence = clamp01(confidence);
 
-  const threshold = input.threshold ?? 0.72;
+  const threshold = input.threshold ?? EXECUTE_THRESHOLD;
   const decision: Decision =
     confidence >= threshold ? 'execute' : confidence >= CONFIRM_THRESHOLD ? 'confirm' : 'reject';
 

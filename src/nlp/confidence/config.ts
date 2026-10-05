@@ -14,19 +14,32 @@ export const CONFIDENCE_WEIGHTS = {
 } as const;
 
 /** Confidence at or above which a command is executed immediately. */
-export const EXECUTE_THRESHOLD = 0.72;
+export const EXECUTE_THRESHOLD = 0.62;
 
 /** Between CONFIRM and EXECUTE the app asks the rider to repeat. */
-export const CONFIRM_THRESHOLD = 0.5;
+export const CONFIRM_THRESHOLD = 0.45;
 
 /**
  * If the top two intents are closer than this AND form a known confusable
  * pair, the result is deliberately pushed down instead of guessed.
  */
-export const MIN_MARGIN = 0.12;
+export const MIN_MARGIN = 0.1;
 
-/** Multiplier applied to ambiguous, semantically-opposite interpretations. */
-export const AMBIGUITY_PENALTY = 0.7;
+/**
+ * The penalty only applies when the runner-up is a genuine contender. Two
+ * low-scoring intents (typical for noise) are not "ambiguous" — they are simply
+ * unrecognised, and penalising them again just buries a correct command.
+ */
+export const MIN_RUNNER_UP_SCORE = 0.25;
+
+/**
+ * Multiplier applied to ambiguous, semantically-opposite interpretations.
+ *
+ * Kept mild (0.85, not 0.7): "increase volume" vs "decrease volume" is the exact
+ * case the penalty exists for, but over-penalising it made correctly-heard volume
+ * commands fall below the threshold and never execute.
+ */
+export const AMBIGUITY_PENALTY = 0.85;
 
 /** Used when the ASR provider cannot report a confidence. */
 export const DEFAULT_ASR_CONFIDENCE = 0.75;
