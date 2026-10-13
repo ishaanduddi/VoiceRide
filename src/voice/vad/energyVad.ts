@@ -31,21 +31,22 @@ export interface VadConfig {
 
 export const DEFAULT_VAD_CONFIG: VadConfig = {
   /**
-   * Raised from 8 dB: with music or engine drone present, a low margin let
-   * steady background audio trip the detector and get sent to ASR as "speech".
+   * Deliberately sensitive: a low margin above the noise floor is what lets a
+   * rider's voice trip the detector. Music/noise is rejected later, by the
+   * level-modulation gate in the ride loop, NOT by raising this threshold --
+   * raising it (or letting the floor chase loud playback) means speech never
+   * reaches ASR at all.
    */
-  startThresholdDb: 10,
-  endThresholdDb: 5,
-  /** Speech must persist this long before an utterance opens. */
-  minSpeechMs: 250,
-  minSilenceMs: 600,
+  startThresholdDb: 8,
+  endThresholdDb: 4,
+  minSpeechMs: 150,
+  minSilenceMs: 500,
   maxUtteranceMs: 6000,
-  /** Adapt faster, so loud music raises the floor instead of triggering. */
-  noiseFloorAdaptation: 0.08,
+  noiseFloorAdaptation: 0.05,
   initialNoiseFloorDb: -50,
   minNoiseFloorDb: -70,
-  /** Allow the floor to track loud playback (phone speaker) upward. */
-  maxNoiseFloorDb: -20,
+  /** Kept modest so a loud passage cannot push the floor above speech level. */
+  maxNoiseFloorDb: -25,
 };
 
 export type VadEvent =

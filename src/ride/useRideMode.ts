@@ -51,7 +51,7 @@ const PREROLL_MS = 300;
 /** Ignore utterances shorter than this (a cough, a car horn). */
 const MIN_UTTERANCE_MS = 200;
 /** Ignore audio captured while our own confirmation speech is still playing. */
-const REFRACTORY_MS = 1200;
+const REFRACTORY_MS = 800;
 /** Never repeat the same spoken prompt within this window. */
 const REPEAT_COOLDOWN_MS = 4000;
 /**
@@ -59,7 +59,7 @@ const REPEAT_COOLDOWN_MS = 4000;
  * through the phone speaker) does not. Utterances longer than the threshold
  * below whose level barely moves are treated as noise and never reach ASR.
  */
-const MIN_MODULATION_DB = 5;
+const MIN_MODULATION_DB = 4;
 const MODULATION_GATE_MS = 800;
 
 interface FrameBuffer {

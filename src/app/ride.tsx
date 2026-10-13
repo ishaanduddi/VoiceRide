@@ -9,14 +9,13 @@ import { ManualCommandBox } from '@/components/ManualCommandBox';
 import { NoiseMeter } from '@/components/NoiseMeter';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { StatusPill, type PillTone } from '@/components/StatusPill';
-import { isCloudAsrConfigured } from '@/config';
 import { useRideMode, type RideStatus } from '@/ride/useRideMode';
 import { useAppContext } from '@/state/contextStore';
 import { libraryStore } from '@/state/libraryStore';
 import { useStore } from '@/state/observable';
 import { sessionStore } from '@/state/sessionStore';
 import { settingsStore } from '@/state/settingsStore';
-import { describeAsrEngine } from '@/voice/asr';
+import { describeAsrEngine, resolveAsrEngine } from '@/voice/asr';
 import { colors, fontSize, spacing } from '@/theme';
 
 const STATUS_LABEL: Record<RideStatus, string> = {
@@ -117,13 +116,12 @@ export default function RideModeScreen() {
         <Row label="Response" value={state.lastResponse ?? '—'} />
       </Card>
 
-      {!isCloudAsrConfigured() ? (
+      {resolveAsrEngine() === 'unconfigured' ? (
         <Banner
           tone="warning"
           message={
-            'Speech recognition is not configured, so voice commands cannot be understood yet. ' +
-            'Set EXPO_PUBLIC_ASR_ENDPOINT in .env (see docs/ARCHITECTURE.md). Meanwhile you can type ' +
-            'commands below to exercise the NLP pipeline.'
+            'Speech recognition is not set up, so nothing can be understood. Open Settings → Speech ' +
+            'recognition and download the speech model (about 75 MB, once), then come back to Ride Mode.'
           }
         />
       ) : null}

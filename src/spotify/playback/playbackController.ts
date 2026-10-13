@@ -7,6 +7,7 @@
  */
 
 import { AppError, NoActiveDeviceError } from '@/utils/errors';
+import { sleep } from '@/utils/async';
 import { createLogger } from '@/utils/logger';
 
 import * as playbackApi from '../api/playback';
@@ -23,6 +24,8 @@ const log = createLogger('spotify:playback');
 const DEFAULT_VOLUME_PERCENT = 50;
 const MIN_VOLUME_PERCENT = 0;
 const MAX_VOLUME_PERCENT = 100;
+/** Wait before reading the volume back, since Spotify reports it asynchronously. */
+const VOLUME_VERIFY_DELAY_MS = 250;
 
 export type VolumeSource = 'voice' | 'programmatic' | 'adaptive';
 
@@ -136,17 +139,6 @@ export class SpotifyPlaybackController {
   /** Relative volume change, e.g. +5 or -5 percentage points. */
   async changeVolumeBy(delta: number, source: VolumeSource = 'voice'): Promise<VolumeChange> {
     const state = await this.getState().catch(() => null);
-
-    // A device that advertises `supports_volume: false` accepts the request and
-    // silently ignores it. Say so instead of pretending it worked.
-    if (state?.device && state.device.supports_volume === false) {
-      throw new AppError(
-        'SPOTIFY_PLAYBACK_UNAVAILABLE',
-        `Spotify is playing on "${state.device.name}", which does not support volume control from the app. ` +
-          'Play on this phone, or use the device\'s own volume buttons.',
-      );
-    }
-
     const previousPercent =
       state?.device?.volume_percent ?? this.deps.getKnownVolumePercent?.() ?? DEFAULT_VOLUME_PERCENT;
 
@@ -165,14 +157,16 @@ export class SpotifyPlaybackController {
     await this.withDevice(() => playbackApi.setVolume(target));
 
     /*
-     * Verify it actually took effect. Some devices accept
-     * `PUT /me/player/volume` and ignore it, which otherwise looks exactly like
-     * "the command did nothing". Only a number that disagrees is treated as a
-     * failure - a missing value just means the device does not report volume.
+     * Verify it took effect. `supports_volume` is NOT reliable (Spotify reports
+     * false for many phones where volume control works fine), so the result is
+     * checked instead of trusted. A short pause lets Spotify report the new
+     * value before it is read back.
      */
+    await sleep(VOLUME_VERIFY_DELAY_MS);
     const after = await this.getState().catch(() => null);
     const reported = after?.device?.volume_percent;
-    if (typeof reported === 'number' && Math.abs(reported - target) > 2) {
+    const unchanged = typeof reported === 'number' && Math.abs(reported - previousPercent) <= 2;
+    if (typeof reported === 'number' && Math.abs(reported - target) > 2 && unchanged) {
       throw new AppError(
         'SPOTIFY_PLAYBACK_UNAVAILABLE',
         `Spotify accepted the volume change but "${after?.device?.name ?? 'the device'}" still reports ` +
