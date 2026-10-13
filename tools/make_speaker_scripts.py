@@ -145,22 +145,25 @@ body(
 )
 
 heading('Speaker 3 — Jai — Competing Market (Slide 4)', 14)
-body('Slide on screen: Competing Market.  Time: 60 seconds.', italic=True, color=MUTED)
+body('Slide on screen: Competing Market table.  Time: 60 seconds.', italic=True, color=MUTED)
 heading('Say this:', 11, ACCENT, 6)
 body(
     '"I\'m Jai, and this is where VoiceRiders sits compared to what already exists.\n\n'
-    'Siri and Google Assistant are general-purpose. They need a wake word, they are not tuned for wind '
-    'or engine noise, and they cannot play a track by its number in a playlist.\n\n'
-    'Spotify\'s own in-app voice control also needs the app open and a wake word, and it is built around '
-    'search rather than playback control while riding.\n\n'
-    'Android Auto and car head units solve this very well — but for cars. They need a head unit and a '
-    'screen, which a motorcycle does not have.\n\n'
-    'Bluetooth media buttons are genuinely hands-free, but all they can do is next, previous and volume. '
-    'You cannot say \'play song number seven\'.\n\n'
-    'So the combination we built — no wake word, noise-aware behaviour, song-number navigation, and '
-    'confidence-gated recovery from bad transcripts — is not available today in one product. '
-    'That is our contribution."'
+    'The mainstream assistants — Siri and Google — need a wake word, they are not tuned for wind or '
+    'engine noise, and they cannot play a track by its number.\n\n'
+    'The motorcycle manufacturers have their own systems. Honda\'s Smartphone Voice Control, on selected '
+    'models, lets you control your phone by voice through a helmet headset. Harley\'s Boom! Box does '
+    'something similar on touring bikes. But both need a specific motorcycle, and both hand the actual '
+    'recognition to your phone\'s assistant. Helmet intercoms from Cardo and Sena have voice commands, '
+    'but only for talking to other riders and basic media transport — next, previous, volume.\n\n'
+    'Bluetooth media buttons are hands-free too, but you cannot say \'play song number seven\'.\n\n'
+    'So the gap is the combination: no wake word, noise-aware behaviour, song-number navigation, and '
+    'recognition that runs inside the app — on any phone, on any bike, with no extra hardware."'
 )
+heading('Key points if asked', 11, ACCENT, 8)
+bullet('Honda and Harley systems are tied to specific models and still rely on the phone assistant for speech.')
+bullet('Intercom systems (Cardo, Sena) only cover intercom plus play/pause/next/volume.')
+bullet('VoiceRiders needs no extra hardware beyond a phone and any headset, and it works offline.')
 
 heading('Speaker 4 — Praveen — Current Status (Slide 5)', 14)
 body('Slide on screen: Current Status with app screenshots.  Time: 60 seconds.', italic=True, color=MUTED)

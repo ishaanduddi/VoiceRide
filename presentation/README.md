@@ -59,6 +59,23 @@ python tools/make_speaker_scripts.py "C:\ISHU\Education\Amrita\5th_Sem\NLP\Voice
 
 Requirements: `pip install python-pptx python-docx`
 
+## Competing market slide — what is being claimed
+
+Rows compared: Siri / Google Assistant, Spotify in-app voice, Android Auto / car head
+units, **Honda Smartphone Voice Control (Honda RoadSync)**, **Harley-Davidson Boom!
+Box**, **Cardo / Sena helmet intercoms**, Bluetooth media buttons, and VoiceRiders.
+
+Two claims, phrased carefully so they hold up if challenged:
+
+- The OEM systems are **tied to specific models** and **delegate the actual speech
+  recognition to the phone's assistant** — they do not run their own model in-app.
+- Only VoiceRiders does all four at once: **no wake word**, **noise-aware volume**,
+  **song-number navigation**, and **in-app on-device recognition**, with **no extra
+  hardware** beyond a phone and a headset.
+
+Do **not** say the OEM systems "don't work" — they work well, on the bikes that have
+them. The argument is about the combination and the hardware requirement, not quality.
+
 ## Facts used on the slides
 
 Everything stated is implemented in this repository, so it can be defended if

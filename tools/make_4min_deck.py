@@ -244,19 +244,24 @@ text(
 
 # ---------------------------------------------------------------- slide 4
 slide = blank_slide(prs)
-header(slide, 'Competing Market', 'Speaker 3 — existing options and where the gap is', 4)
+header(slide, 'Competing Market', 'Speaker 3 — mainstream assistants, motorbike OEM systems, and where the gap is', 4)
 
 rows = [
-    ['Option', 'Wake word', 'Noise-adaptive', 'Song by number', 'Rider-focused', 'Offline ASR'],
-    ['Siri / Google Assistant', 'Required', 'No', 'No', 'No', 'No'],
-    ['Spotify in-app voice', 'Required', 'No', 'No', 'No', 'No'],
-    ['Android Auto / car head unit', 'Required', 'No', 'No', 'Car, not bike', 'No'],
-    ['Bluetooth media buttons', 'n/a', 'No', 'No', 'Partial', 'n/a'],
-    ['VoiceRiders', 'None', 'Yes', 'Yes', 'Yes', 'Yes'],
+    ['Option', 'Hardware needed', 'Wake word', 'Noise-aware', 'Song by number', 'Recognition in app'],
+    ['Siri / Google Assistant', 'Any phone', 'Required', 'No', 'No', 'No (OS)'],
+    ['Spotify in-app voice', 'Any phone', 'Required', 'No', 'No', 'No (OS)'],
+    ['Android Auto / car head unit', 'Head unit + screen', 'Required', 'No', 'No', 'No (OS)'],
+    ['Honda Smartphone Voice Control', 'Selected Honda + headset', 'Required', 'No', 'No', 'No (OS)'],
+    ['Harley-Davidson Boom! Box', 'Touring models only', 'Required', 'No', 'No', 'No (OS)'],
+    ['Cardo / Sena helmet intercoms', 'Helmet intercom', 'Required', 'No', 'No', 'No (OS)'],
+    ['Bluetooth media buttons', 'Any BT headset', 'n/a', 'No', 'No', 'n/a'],
+    ['VoiceRiders', 'Any phone + any headset', 'None', 'Yes', 'Yes', 'Yes (on-device)'],
 ]
-table_shape = slide.shapes.add_table(len(rows), len(rows[0]), Inches(0.6), Inches(1.55), Inches(12.1), Inches(3.1))
+table_shape = slide.shapes.add_table(
+    len(rows), len(rows[0]), Inches(0.6), Inches(1.42), Inches(12.1), Inches(3.7)
+)
 table = table_shape.table
-widths = [3.5, 1.5, 1.85, 1.85, 1.85, 1.55]
+widths = [3.0, 2.5, 1.3, 1.4, 1.5, 2.4]
 for index, width in enumerate(widths):
     table.columns[index].width = Inches(width)
 
@@ -273,23 +278,24 @@ for r, row in enumerate(rows):
         else:
             cell.fill.fore_color.rgb = SURFACE
         paragraph = cell.text_frame.paragraphs[0]
-        paragraph.alignment = PP_ALIGN.LEFT if c == 0 else PP_ALIGN.CENTER
+        paragraph.alignment = PP_ALIGN.LEFT if c < 2 else PP_ALIGN.CENTER
         for run in paragraph.runs:
-            run.font.size = Pt(12)
+            run.font.size = Pt(11)
             run.font.name = FONT
             run.font.bold = (r == 0 or r == len(rows) - 1)
             run.font.color.rgb = PRIMARY if r == len(rows) - 1 else (MUTED if r == 0 else TEXT)
 
 text(
     slide,
-    'Not available together anywhere today:  hands-free with no wake word, noise-aware behaviour, '
-    'playlist-number navigation, and confidence-gated recovery from noisy transcripts.',
-    0.6, 4.95, 12.1, 0.8, size=13, color=WARNING, spacing=1.25,
+    'The motorbike manufacturers do have voice systems — Honda\'s Smartphone Voice Control, Harley\'s Boom! Box — '
+    'but they need a specific motorcycle, and they hand the actual recognition to your phone\'s assistant.',
+    0.6, 5.22, 12.1, 0.6, size=11.5, color=MUTED, spacing=1.2,
 )
 text(
     slide,
-    'Also note: on-device recognition keeps working with no signal — relevant on a bike with no data.',
-    0.6, 5.75, 12.1, 0.5, size=12, color=MUTED,
+    'The gap:  no wake word + noise-aware + song-number navigation + recognition that runs inside the app, '
+    'on any phone and any bike, with no extra hardware.',
+    0.6, 5.88, 12.1, 0.6, size=12.5, color=WARNING, spacing=1.2, bold=True,
 )
 
 # ---------------------------------------------------------------- slide 5
