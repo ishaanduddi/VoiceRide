@@ -26,7 +26,7 @@ import { toUserMessage } from '@/utils/errors';
 import { createLogger } from '@/utils/logger';
 import { audioConfig } from '@/config';
 import { concatFloat32 } from '@/voice/audioProcessing/pcm';
-import { useMicrophoneStream, type MicrophoneFrame } from '@/voice/microphone/useMicrophoneStream';
+import { useMicrophoneStream, type MicrophoneFrame, type UseMicrophoneStreamResult } from '@/voice/microphone/useMicrophoneStream';
 import type { VadEvent } from '@/voice/vad/energyVad';
 
 const log = createLogger('ride');
@@ -87,6 +87,8 @@ export interface UseRideModeResult {
   state: RideState;
   /** The Spotify device playback is on — shown so volume problems are obvious. */
   activeDevice?: ActiveDeviceInfo;
+  /** Live microphone diagnostics, so capture failures are visible on the phone. */
+  microphone: UseMicrophoneStreamResult;
   start: () => Promise<void>;
   stop: () => void;
   /** Dev/testing path that bypasses the microphone and ASR. */
@@ -342,7 +344,10 @@ export function useRideMode(): UseRideModeResult {
       setState((previous) => ({
         ...previous,
         status: 'error',
-        error: 'Microphone permission is required for Ride Mode.',
+        // Surface the real reason (permission, audio session, native failure)
+        // instead of always blaming permission.
+        error:
+          microphoneRef.current.error ?? 'Microphone permission is required for Ride Mode.',
       }));
       return;
     }
@@ -404,5 +409,5 @@ export function useRideMode(): UseRideModeResult {
     [],
   );
 
-  return { state, activeDevice, start, stop, submitManualCommand };
+  return { state, activeDevice, microphone, start, stop, submitManualCommand };
 }

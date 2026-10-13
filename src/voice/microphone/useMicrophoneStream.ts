@@ -7,6 +7,11 @@
  * estimation) or only the VAD events (for utterance capture).
  *
  * No audio leaves the device here; ASR is a separate, explicit step.
+ *
+ * It also publishes live statistics (frames received, level, noise floor, VAD
+ * state). Those make microphone problems diagnosable on-device: a counter that
+ * never moves means the app is not receiving audio at all, which is a different
+ * fault from "audio arrives but nothing is recognised".
  */
 
 import { requestRecordingPermissionsAsync, setAudioModeAsync, useAudioStream, type AudioStreamBuffer } from 'expo-audio';
@@ -31,6 +36,18 @@ export interface MicrophoneFrame {
   speechActive: boolean;
 }
 
+export interface MicrophoneStats {
+  /** Buffers received since recording started. Should climb continuously. */
+  frames: number;
+  /** Level of the most recent frame, dBFS. */
+  lastDbfs?: number;
+  noiseFloorDb?: number;
+  /** The VAD currently considers speech to be happening. */
+  speechActive: boolean;
+  /** Sample rate the device actually delivered. */
+  sampleRate?: number;
+}
+
 export interface UseMicrophoneStreamOptions {
   /** Called for every captured frame (used by Adaptive Audio Mode). */
   onFrame?: (frame: MicrophoneFrame) => void;
@@ -44,9 +61,14 @@ export interface UseMicrophoneStreamResult {
   isActive: boolean;
   error?: string;
   permissionDenied: boolean;
+  /** Live capture statistics for on-device diagnosis. */
+  stats: MicrophoneStats;
   start: () => Promise<boolean>;
   stop: () => void;
 }
+
+/** How often the UI-facing statistics are refreshed (ms). */
+const STATS_INTERVAL_MS = 250;
 
 export function useMicrophoneStream(
   options: UseMicrophoneStreamOptions = {},
@@ -69,6 +91,9 @@ export function useMicrophoneStream(
   const [error, setError] = useState<string | undefined>(undefined);
   const [permissionDenied, setPermissionDenied] = useState(false);
 
+  const statsRef = useRef<MicrophoneStats>({ frames: 0, speechActive: false });
+  const [stats, setStats] = useState<MicrophoneStats>({ frames: 0, speechActive: false });
+
   const handleBuffer = useCallback(
     (buffer: AudioStreamBuffer) => {
       try {
@@ -84,6 +109,14 @@ export function useMicrophoneStream(
           dbfs: result.dbfs,
           noiseFloorDb: result.noiseFloorDb,
           speechActive: result.speechActive,
+        };
+
+        statsRef.current = {
+          frames: statsRef.current.frames + 1,
+          lastDbfs: result.dbfs,
+          noiseFloorDb: result.noiseFloorDb,
+          speechActive: result.speechActive,
+          sampleRate: buffer.sampleRate || audioConfig.sampleRate,
         };
 
         onFrameRef.current?.(frame);
@@ -102,6 +135,13 @@ export function useMicrophoneStream(
     onBuffer: handleBuffer,
   });
   const { stream } = streamResult;
+
+  // Publish statistics on a timer so per-frame updates never trigger re-renders.
+  useEffect(() => {
+    if (!isActive) return undefined;
+    const timer = setInterval(() => setStats({ ...statsRef.current }), STATS_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [isActive]);
 
   const start = useCallback(async (): Promise<boolean> => {
     setError(undefined);
@@ -125,12 +165,19 @@ export function useMicrophoneStream(
       });
 
       vad.reset();
+      statsRef.current = { frames: 0, speechActive: false };
+      setStats({ frames: 0, speechActive: false });
+
       await stream.start();
       setIsActive(true);
       return true;
     } catch (startError) {
       log.warn('failed to start the microphone', startError);
-      setError('Could not start the microphone.');
+      setError(
+        `Could not start the microphone: ${
+          startError instanceof Error ? startError.message : String(startError)
+        }`,
+      );
       return false;
     }
   }, [stream, vad]);
@@ -157,6 +204,7 @@ export function useMicrophoneStream(
     isActive: streamResult.isStreaming || isActive,
     error,
     permissionDenied,
+    stats,
     start,
     stop,
   };

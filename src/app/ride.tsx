@@ -38,7 +38,7 @@ const STATUS_TONE: Record<RideStatus, PillTone> = {
 
 export default function RideModeScreen() {
   const router = useRouter();
-  const { state, activeDevice, start, stop, submitManualCommand } = useRideMode();
+  const { state, activeDevice, microphone, start, stop, submitManualCommand } = useRideMode();
   const library = useStore(libraryStore);
   const settings = useStore(settingsStore);
   const session = useStore(sessionStore);
@@ -98,6 +98,37 @@ export default function RideModeScreen() {
               : 'unknown'
           }
         />
+      </Card>
+
+      <Card
+        title="Microphone"
+        subtitle="Live diagnostics — the frame counter must keep climbing, and the level must move when you speak."
+      >
+        <Row label="Permission" value={microphone.permissionDenied ? 'denied' : 'granted'} />
+        <Row label="Capture" value={microphone.isActive ? 'active' : 'inactive'} />
+        <Row label="Frames received" value={`${microphone.stats.frames}`} />
+        <Row
+          label="Level"
+          value={
+            microphone.stats.lastDbfs !== undefined
+              ? `${microphone.stats.lastDbfs.toFixed(1)} dBFS`
+              : '—'
+          }
+        />
+        <Row
+          label="Noise floor"
+          value={
+            microphone.stats.noiseFloorDb !== undefined
+              ? `${microphone.stats.noiseFloorDb.toFixed(1)} dBFS`
+              : '—'
+          }
+        />
+        <Row label="Speech detected" value={microphone.stats.speechActive ? 'yes' : 'no'} />
+        <Row
+          label="Sample rate"
+          value={microphone.stats.sampleRate ? `${microphone.stats.sampleRate} Hz` : '—'}
+        />
+        <Banner tone="error" message={microphone.error} />
       </Card>
 
       {state.adaptiveAudioEnabled ? (
