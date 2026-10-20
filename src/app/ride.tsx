@@ -93,7 +93,7 @@ export default function RideModeScreen() {
           value={
             activeDevice
               ? activeDevice.supportsVolume === false
-                ? 'not supported on this device'
+                ? 'reported unsupported (still attempted)'
                 : 'supported'
               : 'unknown'
           }

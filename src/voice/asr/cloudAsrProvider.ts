@@ -16,6 +16,7 @@ import { withTimeout } from '@/utils/async';
 import type { AsrResult } from '@/nlp/types';
 
 import { encodeWav16 } from '../audioProcessing/wav';
+import { cleanTranscript } from './whisper/cleanTranscript';
 
 import type { AudioUtterance, AsrProvider } from './types';
 
@@ -72,12 +73,14 @@ export class CloudAsrProvider implements AsrProvider {
     };
 
     const text = (payload.text ?? payload.transcript ?? '').trim();
+    const { text: cleaned, nonSpeech } = cleanTranscript(text);
 
     return {
-      text,
+      text: cleaned,
       confidence: typeof payload.confidence === 'number' ? payload.confidence : undefined,
       provider: this.name,
       latencyMs: Date.now() - startedAt,
+      nonSpeech,
     };
   }
 }

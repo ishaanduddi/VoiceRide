@@ -175,7 +175,20 @@ export function useRideMode(): UseRideModeResult {
         decision: result.interpretation.decision,
       }));
 
-      if (result.skipped) return;
+      if (result.skipped) {
+        // Nothing usable was heard. If it was music or noise, say so in the UI
+        // only (never aloud) - the usual cause is playback through the speaker.
+        if (result.asr.nonSpeech) {
+          setState((previous) => ({
+            ...previous,
+            status: 'listening',
+            lastTranscript: '(music / noise)',
+            lastResponse:
+              'Heard music, not speech. Use headphones so the microphone hears you, not the song.',
+          }));
+        }
+        return;
+      }
 
       hapticTap(settingsStore.getState().hapticsEnabled);
       say(spoken);

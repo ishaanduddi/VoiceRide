@@ -25,6 +25,7 @@ import { encodeWav16 } from '../../audioProcessing/wav';
 import type { AudioUtterance, AsrProvider } from '../types';
 
 import { getModelUri, isModelReady } from './modelManager';
+import { cleanTranscript } from './cleanTranscript';
 import { loadWhisperModule, type WhisperContext } from './whisperModule';
 
 const log = createLogger('voice:asr:on-device');
@@ -111,9 +112,15 @@ export class OnDeviceWhisperProvider implements AsrProvider {
     });
 
     const result = await promise;
-    const text = (result.result ?? '').trim();
+    // whisper.cpp annotates non-speech audio as "[Music]", "[BLANK_AUDIO]", etc.
+    // Those must never reach the NLP pipeline (see cleanTranscript).
+    const { text, nonSpeech } = cleanTranscript(result.result ?? '');
 
-    log.info(`"${text}" (${Date.now() - startedAt}ms, ${utterance.pcm.length} samples)`);
+    log.info(
+      `"${(result.result ?? '').trim()}" -> "${text}"` +
+        `${nonSpeech ? ' (non-speech: music/noise)' : ''} ` +
+        `(${Date.now() - startedAt}ms, ${utterance.pcm.length} samples)`,
+    );
 
     return {
       text,
@@ -122,6 +129,7 @@ export class OnDeviceWhisperProvider implements AsrProvider {
       confidence: undefined,
       provider: this.name,
       latencyMs: Date.now() - startedAt,
+      nonSpeech,
     };
   }
 

@@ -64,6 +64,14 @@ export interface AsrResult {
   provider: string;
   /** Wall-clock latency of the ASR call, ms. */
   latencyMs?: number;
+  /**
+   * True when the provider detected only non-speech audio (music, noise).
+   *
+   * Whisper emits bracketed annotations such as "[Music]" or "[BLANK_AUDIO]" for
+   * these. Feeding them into the NLP pipeline made the app classify "music" as
+   * PLAY and ask the rider to repeat, so they are stripped and flagged instead.
+   */
+  nonSpeech?: boolean;
 }
 
 export type Decision = 'execute' | 'confirm' | 'reject';
