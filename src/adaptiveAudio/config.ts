@@ -57,30 +57,35 @@ export const ADAPTIVE_AUDIO_PROFILES: Record<AdaptiveAudioProfile, AdaptiveAudio
   conservative: {
     ...BASE_THRESHOLDS,
     zoneDelta: { QUIET: 0, MODERATE: 0, NOISY: 1, VERY_NOISY: 1, EXTREME: 2 },
-    smoothingWindowMs: 4000,
-    cooldownMs: 8000,
-    hysteresisDwellMs: 4000,
-    hysteresisDb: 3,
+    smoothingWindowMs: 5000,
+    cooldownMs: 12000,
+    hysteresisDwellMs: 6000,
+    hysteresisDb: 4,
     maxVolumePercent: 85,
     minVolumePercent: 0,
   },
   balanced: {
     ...BASE_THRESHOLDS,
     zoneDelta: { QUIET: 0, MODERATE: 0, NOISY: 1, VERY_NOISY: 2, EXTREME: 2 },
-    smoothingWindowMs: 3000,
-    cooldownMs: 5000,
-    hysteresisDwellMs: 3000,
-    hysteresisDb: 2,
+    smoothingWindowMs: 4000,
+    /*
+     * Deliberately slow. With a shorter dwell/cooldown the volume could be seen
+     * climbing and dropping repeatedly when the ambient level sat near a zone
+     * boundary, which looks like the app "changing the volume on its own".
+     */
+    cooldownMs: 10000,
+    hysteresisDwellMs: 6000,
+    hysteresisDb: 4,
     maxVolumePercent: 90,
     minVolumePercent: 0,
   },
   aggressive: {
     ...BASE_THRESHOLDS,
     zoneDelta: { QUIET: 0, MODERATE: 1, NOISY: 2, VERY_NOISY: 3, EXTREME: 3 },
-    smoothingWindowMs: 2000,
-    cooldownMs: 3500,
-    hysteresisDwellMs: 2000,
-    hysteresisDb: 1,
+    smoothingWindowMs: 2500,
+    cooldownMs: 6000,
+    hysteresisDwellMs: 3500,
+    hysteresisDb: 2,
     maxVolumePercent: 100,
     minVolumePercent: 0,
   },

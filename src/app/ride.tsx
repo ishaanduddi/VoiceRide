@@ -88,16 +88,6 @@ export default function RideModeScreen() {
         />
         <Row label="Engine" value={describeAsrEngine()} />
         <Row label="Device" value={activeDevice?.name ?? 'none active'} />
-        <Row
-          label="App volume control"
-          value={
-            activeDevice
-              ? activeDevice.supportsVolume === false
-                ? 'reported unsupported (still attempted)'
-                : 'supported'
-              : 'unknown'
-          }
-        />
       </Card>
 
       <Card
