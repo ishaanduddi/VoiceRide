@@ -20,7 +20,7 @@ export interface ManualCommandBoxProps {
 export function ManualCommandBox({
   onSubmit,
   disabled = false,
-  placeholder = 'Type a command, e.g. "play song number 7"',
+  placeholder = 'Type a command, e.g. "play believer"',
 }: ManualCommandBoxProps) {
   const [text, setText] = useState('');
 

@@ -157,8 +157,8 @@ body(
     'recognition to your phone\'s assistant. Helmet intercoms from Cardo and Sena have voice commands, '
     'but only for talking to other riders and basic media transport — next, previous, volume.\n\n'
     'Bluetooth media buttons are hands-free too, but you cannot say \'play song number seven\'.\n\n'
-    'So the gap is the combination: no wake word, noise-aware behaviour, song-number navigation, and '
-    'recognition that runs inside the app — on any phone, on any bike, with no extra hardware."'
+    'So the gap is the combination: no wake word, noise-aware behaviour, and recognition that runs '
+    'inside the app — on any phone, on any bike, with no extra hardware."'
 )
 heading('Key points if asked', 11, ACCENT, 8)
 bullet('Honda and Harley systems are tied to specific models and still rely on the phone assistant for speech.')
@@ -171,8 +171,9 @@ heading('Say this:', 11, ACCENT, 6)
 body(
     '"I\'m Praveen, and this is what actually runs today.\n\n'
     'We have a working Android app. The rider logs into their own Spotify account using OAuth with '
-    'PKCE — no client secret is ever stored. Playlists load with real track counts, and every track is '
-    'numbered, so \'play song number seven\' resolves to the correct track.\n\n'
+    'PKCE — no client secret is ever stored. Any song can be played by name: say "play believer" and it '
+    'searches Spotify and starts the most popular match; say "believer by imagine dragons" and it pins '
+    'the artist.\n\n'
     'Playback control works: play, pause, resume, next, previous and volume.\n\n'
     'Ride Mode runs the whole pipeline on the device — voice activity detection, then Whisper, then our '
     'NLP pipeline and the confidence gate, and finally the Spotify API. Adaptive Audio raises the volume '

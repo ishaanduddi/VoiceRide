@@ -61,12 +61,22 @@ const REPEAT_COOLDOWN_MS = 4000;
  */
 const MIN_MODULATION_DB = 4;
 const MODULATION_GATE_MS = 800;
+/**
+ * A rider's own voice is clearly louder than the ambient floor; conversation from
+ * further away is only just above it. Speech that barely clears the floor is
+ * ignored rather than merged into the command.
+ */
+const MIN_PEAK_SNR_DB = 8;
 
 interface FrameBuffer {
   frames: { pcm: Float32Array; durationMs: number }[];
   ms: number;
   minDbfs: number;
   maxDbfs: number;
+  /** Loudest frame in the utterance (to judge how close the speaker was). */
+  peakDbfs: number;
+  /** Noise floor when the utterance opened. */
+  startNoiseFloorDb: number;
 }
 
 const emptyBuffer = (): FrameBuffer => ({
@@ -74,6 +84,8 @@ const emptyBuffer = (): FrameBuffer => ({
   ms: 0,
   minDbfs: Number.POSITIVE_INFINITY,
   maxDbfs: Number.NEGATIVE_INFINITY,
+  peakDbfs: Number.NEGATIVE_INFINITY,
+  startNoiseFloorDb: -50,
 });
 
 export interface ActiveDeviceInfo {
@@ -231,6 +243,7 @@ export function useRideMode(): UseRideModeResult {
       utterance.ms += frame.durationMs;
       if (frame.dbfs < utterance.minDbfs) utterance.minDbfs = frame.dbfs;
       if (frame.dbfs > utterance.maxDbfs) utterance.maxDbfs = frame.dbfs;
+      if (frame.dbfs > utterance.peakDbfs) utterance.peakDbfs = frame.dbfs;
     }
   }, []);
 
@@ -245,6 +258,8 @@ export function useRideMode(): UseRideModeResult {
             ms: rolling.ms,
             minDbfs: frame.dbfs,
             maxDbfs: frame.dbfs,
+            peakDbfs: frame.dbfs,
+            startNoiseFloorDb: frame.noiseFloorDb,
           };
           log.debug('speech started');
           continue;
@@ -263,7 +278,17 @@ export function useRideMode(): UseRideModeResult {
           continue;
         }
 
-        // 2. Steady loud audio (music playing through the phone speaker) barely
+        // 2. Speech that barely clears the noise floor came from too far away
+        //    (another rider, a passenger, a phone call nearby).
+        const snr = utterance.peakDbfs - utterance.startNoiseFloorDb;
+        if (utterance.peakDbfs > Number.NEGATIVE_INFINITY && snr < MIN_PEAK_SNR_DB) {
+          log.info(
+            `ignoring quiet speech (${snr.toFixed(1)} dB above the floor) - too far from the mic`,
+          );
+          continue;
+        }
+
+        // 3. Steady loud audio (music playing through the phone speaker) barely
         //    changes level frame to frame; real speech swings widely.
         const modulation = utterance.maxDbfs - utterance.minDbfs;
         if (utterance.ms >= MODULATION_GATE_MS && modulation < MIN_MODULATION_DB) {
@@ -376,6 +401,8 @@ export function useRideMode(): UseRideModeResult {
   const stop = useCallback(() => {
     microphoneRef.current.stop();
     adaptiveAudio.setEnabled(false);
+    // Drop any pending yes/no question so it cannot leak into the next ride.
+    voiceController.reset();
     contextManager.setState({ rideMode: false, adaptiveAudio: false });
     stopSpeaking();
     setState((previous) => ({ ...previous, status: 'stopped', adaptiveAudioEnabled: false }));

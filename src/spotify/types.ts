@@ -25,6 +25,8 @@ export interface SpotifyTrack {
   is_playable?: boolean;
   artists: SpotifyArtist[];
   album: SpotifyAlbum;
+  /** 0-100, derived from recent plays. The closest thing Spotify exposes to "views". */
+  popularity?: number;
 }
 
 export interface SpotifyPlaylist {

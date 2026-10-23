@@ -121,29 +121,6 @@
 {"text": "stopp", "intent": "STOP"}
 {"text": "stop teh music", "intent": "STOP"}
 {"text": "stop musci", "intent": "STOP"}
-{"text": "play song number 7", "intent": "PLAY_SONG"}
-{"text": "play number seven", "intent": "PLAY_SONG"}
-{"text": "play the seventh song", "intent": "PLAY_SONG"}
-{"text": "play the seventh track", "intent": "PLAY_SONG"}
-{"text": "play track 7", "intent": "PLAY_SONG"}
-{"text": "track 7", "intent": "PLAY_SONG"}
-{"text": "song number 7", "intent": "PLAY_SONG"}
-{"text": "play the seventh one", "intent": "PLAY_SONG"}
-{"text": "play number 3", "intent": "PLAY_SONG"}
-{"text": "play song number five", "intent": "PLAY_SONG"}
-{"text": "play track 12", "intent": "PLAY_SONG"}
-{"text": "play the third song", "intent": "PLAY_SONG"}
-{"text": "play number 5", "intent": "PLAY_SONG"}
-{"text": "play the second track", "intent": "PLAY_SONG"}
-{"text": "play song 4", "intent": "PLAY_SONG"}
-{"text": "play track number seven", "intent": "PLAY_SONG"}
-{"text": "go to track 9", "intent": "PLAY_SONG"}
-{"text": "play the tenth song", "intent": "PLAY_SONG"}
-{"text": "play song number sevem", "intent": "PLAY_SONG"}
-{"text": "play the sevent song", "intent": "PLAY_SONG"}
-{"text": "play track sevn", "intent": "PLAY_SONG"}
-{"text": "play song number sevan", "intent": "PLAY_SONG"}
-{"text": "play song number heaven", "intent": "PLAY_SONG"}
 {"text": "what is the weather like", "intent": "UNKNOWN"}
 {"text": "call mom", "intent": "UNKNOWN"}
 {"text": "how are you", "intent": "UNKNOWN"}
@@ -179,9 +156,22 @@
 {"text": "pause the playback", "intent": "PAUSE"}
 {"text": "resume the song", "intent": "RESUME"}
 {"text": "stop the song", "intent": "STOP"}
-{"text": "play song number eleven", "intent": "PLAY_SONG"}
-{"text": "play the fifth song", "intent": "PLAY_SONG"}
-{"text": "play track 2", "intent": "PLAY_SONG"}
 {"text": "how far is the next stop", "intent": "UNKNOWN"}
 {"text": "read my messages", "intent": "UNKNOWN"}
 {"text": "cancel navigation", "intent": "UNKNOWN"}
+{"text": "play believer", "intent": "PLAY_SONG"}
+{"text": "play thunder", "intent": "PLAY_SONG"}
+{"text": "play song believer", "intent": "PLAY_SONG"}
+{"text": "play track thunder", "intent": "PLAY_SONG"}
+{"text": "play the song believer", "intent": "PLAY_SONG"}
+{"text": "play shape of you", "intent": "PLAY_SONG"}
+{"text": "play blinding lights", "intent": "PLAY_SONG"}
+{"text": "play bohemian rhapsody", "intent": "PLAY_SONG"}
+{"text": "play believer by imagine dragons", "intent": "PLAY_SONG"}
+{"text": "play a song by imagine dragons", "intent": "PLAY_SONG"}
+{"text": "play levitating by dua lipa", "intent": "PLAY_SONG"}
+{"text": "play stay by the kid laroi", "intent": "PLAY_SONG"}
+{"text": "play song thunder", "intent": "PLAY_SONG"}
+{"text": "play beleiver", "intent": "PLAY_SONG"}
+{"text": "play beliver by imagine dragon", "intent": "PLAY_SONG"}
+{"text": "play blinding light", "intent": "PLAY_SONG"}

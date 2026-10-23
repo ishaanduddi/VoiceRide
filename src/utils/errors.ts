@@ -23,6 +23,7 @@ export type AppErrorCode =
   | 'SONG_OUT_OF_RANGE'
   | 'NO_PLAYLIST_SELECTED'
   | 'EMPTY_PLAYLIST'
+  | 'SONG_NOT_FOUND'
   | 'NETWORK_UNAVAILABLE'
   | 'UNKNOWN';
 

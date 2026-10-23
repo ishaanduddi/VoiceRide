@@ -13,7 +13,7 @@ import type { AppContextManager } from '../context/contextManager';
 import type { AppContext } from '../context/types';
 import type { Intent, Interpretation } from '../types';
 
-import { responses } from './responses';
+import { intentPhrase, responses } from './responses';
 
 const log = createLogger('nlp:dispatcher');
 
@@ -22,6 +22,11 @@ export interface DispatchDeps {
   context: AppContextManager;
   /** Percentage points applied by a voice volume command. */
   volumeStepPercent: number;
+}
+
+export interface DispatchOptions {
+  /** Set when the rider answered "yes" to a confirmation question. */
+  confirmed?: boolean;
 }
 
 export interface DispatchOutcome {
@@ -41,6 +46,7 @@ const NOISE_FLOOR_CONFIDENCE = 0.35;
 export async function dispatchInterpretation(
   interpretation: Interpretation,
   deps: DispatchDeps,
+  options: DispatchOptions = {},
 ): Promise<DispatchOutcome> {
   const { controller, context, volumeStepPercent } = deps;
   const intent = interpretation.prediction.intent;
@@ -54,22 +60,28 @@ export async function dispatchInterpretation(
     });
   };
 
-  // Low confidence: never execute blindly.
-  if (interpretation.decision !== 'execute') {
+  // Not confident enough to act on its own.
+  if (interpretation.decision !== 'execute' && !options.confirmed) {
     /*
-     * Noise, music and coughs land here constantly while riding. Announcing
-     * "sorry, I didn't catch that" for every one of them is worse than staying
-     * quiet, so only speak when there is evidence a real command was attempted:
-     * something other than UNKNOWN was recognised, with a non-trivial score.
+     * A plausible command with middling confidence gets a yes/no question
+     * instead of "please repeat": one word finishes it, which is much easier
+     * while riding than re-saying the whole sentence.
      */
+    const canConfirm =
+      interpretation.decision === 'confirm' &&
+      intent !== 'UNKNOWN' &&
+      !(intent === 'PLAY_SONG' && !interpretation.entities.songTitle);
+
+    if (canConfirm) {
+      const spoken = responses.confirmQuestion(intentPhrase(intent));
+      mark();
+      log.info(`confirm requested for ${intent} (${interpretation.confidence.toFixed(2)})`);
+      return { ok: false, intent, spoken };
+    }
+
     const attemptedCommand =
       intent !== 'UNKNOWN' && interpretation.confidence >= NOISE_FLOOR_CONFIDENCE;
-
-    const spoken = !attemptedCommand
-      ? ''
-      : interpretation.decision === 'confirm'
-        ? responses.confirm
-        : responses.lowConfidence;
+    const spoken = attemptedCommand ? responses.lowConfidence : '';
 
     mark();
     log.info(
@@ -130,21 +142,25 @@ export async function dispatchInterpretation(
       }
 
       case 'PLAY_SONG': {
-        const songNumber = interpretation.entities.songNumber;
-        if (songNumber === undefined) {
+        const title = interpretation.entities.songTitle;
+        if (!title) {
           mark();
           return { ok: false, intent, spoken: responses.lowConfidence };
         }
-        const entry = await controller.playSongNumber(songNumber);
-        mark({
-          currentTrackIndex: entry.displayIndex,
-          currentTrackName: entry.name,
-          isPlaying: true,
-        });
+
+        // The playlist-number command was removed; if the rider still says a
+        // bare number, explain rather than searching Spotify for "7".
+        if (/^\d+$/.test(title)) {
+          mark();
+          return { ok: false, intent, spoken: responses.numberNotSupported };
+        }
+
+        const played = await controller.playByQuery(title, interpretation.entities.artist);
+        mark({ currentTrackName: played.name, isPlaying: true });
         return {
           ok: true,
           intent,
-          spoken: responses.playingNumber(entry.displayIndex, entry.name),
+          spoken: responses.playingSong(played.name, played.artists),
         };
       }
 

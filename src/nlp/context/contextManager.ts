@@ -54,8 +54,8 @@ export interface ContextEvaluation {
   /** 0 = impossible in this context, 1 = perfectly consistent. */
   score: number;
   reasons: string[];
-  /** Whether this intent needs a `songNumber` entity. */
-  requiresSongNumber: boolean;
+  /** Whether this intent needs a song name entity. */
+  requiresSongQuery: boolean;
 }
 
 const DEFAULT_CONTEXT_SCORE = 1;
@@ -75,27 +75,23 @@ export function evaluateContext(
 ): ContextEvaluation {
   const reasons: string[] = [];
   let score = DEFAULT_CONTEXT_SCORE;
-  const requiresSongNumber = intent === 'PLAY_SONG';
+  const requiresSongQuery = intent === 'PLAY_SONG';
 
   if (intent === 'UNKNOWN') {
-    return { score: 0, reasons: ['no intent to evaluate'], requiresSongNumber: false };
+    return { score: 0, reasons: ['no intent to evaluate'], requiresSongQuery: false };
   }
 
   if (!context.spotifyConnected) {
-    return { score: 0, reasons: ['Spotify is not connected'], requiresSongNumber };
+    return { score: 0, reasons: ['Spotify is not connected'], requiresSongQuery };
   }
 
-  if (requiresSongNumber) {
-    if (!context.playlistId || context.trackCount === 0) {
-      return { score: 0, reasons: ['no playlist selected'], requiresSongNumber };
-    }
-    if (entities.songNumber === undefined) {
-      score = Math.min(score, 0.5);
-      reasons.push('no song number heard');
-    } else if (entities.songNumber > context.trackCount) {
-      score = Math.min(score, 0.6);
-      reasons.push(`song ${entities.songNumber} is beyond the ${context.trackCount}-track playlist`);
-    }
+  /*
+   * PLAY_SONG now searches Spotify by name, so it no longer depends on a
+   * playlist being selected — only on a song name having been heard.
+   */
+  if (requiresSongQuery && !entities.songTitle) {
+    score = Math.min(score, 0.5);
+    reasons.push('no song name heard');
   }
 
   if (intent === 'PAUSE' && !context.isPlaying) {
@@ -127,7 +123,7 @@ export function evaluateContext(
   if (context.rideMode) reasons.push('ride mode is active');
   if (reasons.length === 0) reasons.push('context is consistent');
 
-  return { score, reasons, requiresSongNumber };
+  return { score, reasons, requiresSongQuery };
 }
 
 /**

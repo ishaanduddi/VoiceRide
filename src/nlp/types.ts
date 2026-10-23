@@ -26,7 +26,10 @@ export const INTENTS: Intent[] = [
 ];
 
 export interface Entities {
-  songNumber?: number;
+  /** Song title the rider asked for, e.g. "believer". */
+  songTitle?: string;
+  /** Optional artist filter, from "&lt;title&gt; by &lt;artist&gt;". */
+  artist?: string;
 }
 
 /** Result of text normalization (see nlp/preprocessing/normalize.ts). */

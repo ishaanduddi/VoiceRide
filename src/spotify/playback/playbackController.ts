@@ -11,6 +11,7 @@ import { sleep } from '@/utils/async';
 import { createLogger } from '@/utils/logger';
 
 import * as playbackApi from '../api/playback';
+import { searchTracks } from '../api/search';
 
 import {
   describeTrack,
@@ -18,6 +19,7 @@ import {
   type PlaylistTrackMap,
   type TrackEntry,
 } from './playlistTrackMap';
+import { describeTrack as describeSpotifyTrack, pickBestTrack } from './trackSelection';
 
 const log = createLogger('spotify:playback');
 
@@ -26,6 +28,8 @@ const MIN_VOLUME_PERCENT = 0;
 const MAX_VOLUME_PERCENT = 100;
 /** Wait before reading the volume back, since Spotify reports it asynchronously. */
 const VOLUME_VERIFY_DELAY_MS = 250;
+/** Extra pause before retrying a volume change some devices drop. */
+const VOLUME_RETRY_DELAY_MS = 600;
 
 export type VolumeSource = 'voice' | 'programmatic' | 'adaptive';
 
@@ -48,6 +52,13 @@ export interface VolumeChange {
   previousPercent: number;
   volumePercent: number;
   appliedDelta: number;
+}
+
+/** A track that was started by name, rather than from the numbered playlist. */
+export interface PlayedTrack {
+  name: string;
+  artists: string;
+  uri: string;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -127,6 +138,40 @@ export class SpotifyPlaybackController {
     return entry;
   }
 
+  /**
+   * Plays a song by name, e.g. "believer" or "believer by imagine dragons".
+   *
+   * When only a title is given the most popular matching track is chosen (see
+   * trackSelection.ts), which is the nearest thing to "the version with the most
+   * plays". Naming an artist restricts the choice to that artist.
+   */
+  async playByQuery(title: string, artist?: string): Promise<PlayedTrack> {
+    const query = title.trim();
+    if (!query) throw new AppError('SONG_NOT_FOUND', 'Say the name of the song you want to play.');
+
+    const results = await searchTracks({ title: query, artist });
+    const chosen = pickBestTrack(results, query, artist);
+
+    if (!chosen || !chosen.uri) {
+      throw new AppError(
+        'SONG_NOT_FOUND',
+        artist
+          ? `I couldn't find "${query}" by ${artist} on Spotify.`
+          : `I couldn't find "${query}" on Spotify.`,
+      );
+    }
+
+    log.info(`search "${query}"${artist ? ` / ${artist}` : ''} -> "${describeSpotifyTrack(chosen)}"`);
+
+    await this.withDevice(() => playbackApi.play({ uris: [chosen.uri] }));
+
+    return {
+      name: chosen.name,
+      artists: (chosen.artists ?? []).map((entry) => entry.name).join(', '),
+      uri: chosen.uri,
+    };
+  }
+
   private async currentVolumePercent(): Promise<number> {
     const state = await this.getState().catch(() => null);
     return (
@@ -159,14 +204,23 @@ export class SpotifyPlaybackController {
     /*
      * Verify it took effect. `supports_volume` is NOT reliable (Spotify reports
      * false for many phones where volume control works fine), so the result is
-     * checked instead of trusted. A short pause lets Spotify report the new
-     * value before it is read back.
+     * checked instead of trusted. Some devices silently drop the first request
+     * after a device switch, so it is retried once before reporting a failure.
      */
     await sleep(VOLUME_VERIFY_DELAY_MS);
-    const after = await this.getState().catch(() => null);
-    const reported = after?.device?.volume_percent;
-    const unchanged = typeof reported === 'number' && Math.abs(reported - previousPercent) <= 2;
-    if (typeof reported === 'number' && Math.abs(reported - target) > 2 && unchanged) {
+    let after = await this.getState().catch(() => null);
+    let reported = after?.device?.volume_percent;
+
+    if (typeof reported === 'number' && Math.abs(reported - target) > 2) {
+      log.info(`volume did not stick (${reported}% vs ${target}%), retrying once`);
+      await sleep(VOLUME_RETRY_DELAY_MS);
+      await this.withDevice(() => playbackApi.setVolume(target));
+      await sleep(VOLUME_VERIFY_DELAY_MS);
+      after = await this.getState().catch(() => null);
+      reported = after?.device?.volume_percent;
+    }
+
+    if (typeof reported === 'number' && Math.abs(reported - target) > 2) {
       throw new AppError(
         'SPOTIFY_PLAYBACK_UNAVAILABLE',
         `Spotify accepted the volume change but "${after?.device?.name ?? 'the device'}" still reports ` +

@@ -9,13 +9,14 @@
  */
 
 import { computeConfidence } from './confidence/confidenceEngine';
-import type { AppContext } from './context/types';
 import { evaluateContext, resolveIntentWithContext } from './context/contextManager';
-import { extractEntities } from './entityExtractor/songNumber';
+import type { AppContext } from './context/types';
+import { extractEntities } from './entityExtractor/songRequest';
 import { bestPhraseSimilarity } from './fuzzyMatcher';
 import { classifyIntent } from './intentClassifier/classifier';
 import { INTENT_KEYWORDS } from './intentClassifier/labels';
 import { normalizeCommand } from './preprocessing/normalize';
+import { applyVolumeDirection } from './preprocessing/volumeDirection';
 import type { Intent, Interpretation } from './types';
 
 export interface InterpretOptions {
@@ -25,9 +26,6 @@ export interface InterpretOptions {
   /** Execute threshold; comes from user Settings. */
   confidenceThreshold?: number;
 }
-
-/** Intents whose meaning depends on a `songNumber` entity. */
-const SELECTION_VERBS = /(play|track)/;
 
 /** Converts free text into a fully-scored interpretation. */
 export function interpretCommand(transcript: string, options: InterpretOptions): Interpretation {
@@ -39,12 +37,21 @@ export function interpretCommand(transcript: string, options: InterpretOptions):
 
   let intent: Intent = prediction.intent;
 
-  // Entity-driven refinement: "play 7" may classify as PLAY, but the presence
-  // of a song number means the rider wants PLAY_SONG.
-  if (entities.songNumber !== undefined) {
+  // Safety: an explicit direction word wins over the classifier, so a decrease
+  // can never be executed as an increase (or vice versa).
+  const direction = applyVolumeDirection(intent, normalized.canonicalTokens);
+  if (direction.reason) reasons.push(direction.reason);
+  intent = direction.intent;
+
+  /*
+   * Entity-driven refinement: a song name after "play" means PLAY_SONG,
+   * regardless of how the classifier leant. "play believer" is a title request,
+   * not a resume.
+   */
+  if (entities.songTitle) {
     if (intent === 'PLAY' || intent === 'PLAY_SONG') {
       intent = 'PLAY_SONG';
-    } else if (intent === 'UNKNOWN' && SELECTION_VERBS.test(normalized.canonicalText)) {
+    } else if (intent === 'UNKNOWN' && normalized.canonicalTokens.includes('play')) {
       intent = 'PLAY_SONG';
     }
   }
@@ -66,8 +73,8 @@ export function interpretCommand(transcript: string, options: InterpretOptions):
     fuzzyScore,
     asrConfidence: options.asrConfidence,
     contextScore: contextEvaluation.score,
-    hasSongNumber: entities.songNumber !== undefined,
-    requiresSongNumber: contextEvaluation.requiresSongNumber,
+    hasSongQuery: Boolean(entities.songTitle),
+    requiresSongQuery: contextEvaluation.requiresSongQuery,
     threshold: options.confidenceThreshold,
   });
 

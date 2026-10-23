@@ -53,8 +53,10 @@ export default function HomeScreen() {
         />
       ) : null}
 
-      <Card title="Selected playlist" subtitle="Commands like “play number 7” use this playlist.">
-        <Text style={styles.playlistName}>
+      <Card
+        title="Selected playlist"
+        subtitle="Optional. You can also just say “play believer” — any song on Spotify."
+      >        <Text style={styles.playlistName}>
           {library.selectedPlaylistName ?? 'No playlist selected yet'}
         </Text>
         <Text style={styles.meta}>

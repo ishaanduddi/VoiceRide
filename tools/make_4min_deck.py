@@ -247,12 +247,12 @@ slide = blank_slide(prs)
 header(slide, 'Competing Market', 'Speaker 3 — mainstream assistants, motorbike OEM systems, and where the gap is', 4)
 
 rows = [
-    ['Option', 'Hardware needed', 'Wake word', 'Noise-aware', 'Song by number', 'Recognition in app'],
-    ['Siri / Google Assistant', 'Any phone', 'Required', 'No', 'No', 'No (OS)'],
-    ['Spotify in-app voice', 'Any phone', 'Required', 'No', 'No', 'No (OS)'],
-    ['Android Auto / car head unit', 'Head unit + screen', 'Required', 'No', 'No', 'No (OS)'],
-    ['Honda Smartphone Voice Control', 'Selected Honda + headset', 'Required', 'No', 'No', 'No (OS)'],
-    ['Harley-Davidson Boom! Box', 'Touring models only', 'Required', 'No', 'No', 'No (OS)'],
+    ['Option', 'Hardware needed', 'Wake word', 'Noise-aware', 'Song by name', 'Recognition in app'],
+    ['Siri / Google Assistant', 'Any phone', 'Required', 'No', 'Yes', 'No (OS)'],
+    ['Spotify in-app voice', 'Any phone', 'Required', 'No', 'Yes', 'No (OS)'],
+    ['Android Auto / car head unit', 'Head unit + screen', 'Required', 'No', 'Yes', 'No (OS)'],
+    ['Honda Smartphone Voice Control', 'Selected Honda + headset', 'Required', 'No', 'Yes', 'No (OS)'],
+    ['Harley-Davidson Boom! Box', 'Touring models only', 'Required', 'No', 'Yes', 'No (OS)'],
     ['Cardo / Sena helmet intercoms', 'Helmet intercom', 'Required', 'No', 'No', 'No (OS)'],
     ['Bluetooth media buttons', 'Any BT headset', 'n/a', 'No', 'No', 'n/a'],
     ['VoiceRiders', 'Any phone + any headset', 'None', 'Yes', 'Yes', 'Yes (on-device)'],
@@ -261,7 +261,7 @@ table_shape = slide.shapes.add_table(
     len(rows), len(rows[0]), Inches(0.6), Inches(1.42), Inches(12.1), Inches(3.7)
 )
 table = table_shape.table
-widths = [3.0, 2.5, 1.3, 1.4, 1.5, 2.4]
+widths = [2.9, 2.5, 1.2, 1.4, 1.6, 2.5]
 for index, width in enumerate(widths):
     table.columns[index].width = Inches(width)
 
@@ -293,8 +293,8 @@ text(
 )
 text(
     slide,
-    'The gap:  no wake word + noise-aware + song-number navigation + recognition that runs inside the app, '
-    'on any phone and any bike, with no extra hardware.',
+    'The gap:  no wake word + noise-aware + recognition that runs inside the app, on any phone and '
+    'any bike, with no extra hardware.',
     0.6, 5.88, 12.1, 0.6, size=12.5, color=WARNING, spacing=1.2, bold=True,
 )
 
@@ -309,7 +309,7 @@ lines(
     [
         'Spotify login with OAuth 2.0 + PKCE through the relay',
         'Playlists load with real track counts',
-        'Numbered playlist map — "play song number 7" resolves to a track',
+        'Any song by name: "play believer" plays the most popular match; "believer by imagine dragons" pins the artist',
         'Playback control: play, pause, resume, next, previous, volume',
         'Ride Mode: VAD → on-device Whisper → NLP → confidence gate → Spotify',
         'Adaptive Audio: ambient noise raises the volume in small steps',

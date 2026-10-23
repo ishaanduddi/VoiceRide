@@ -19,7 +19,7 @@ wind, engine noise, traffic and a phone tucked inside a jacket.
 | 2 | Voice Activity Detection so ASR only runs on real speech | `src/voice/vad/energyVad.ts` |
 | 3 | Context-aware NLP (uses what is playing/selected) | `src/nlp/context` |
 | 4 | Fuzzy recovery from ASR errors (typos, phonetics) | `src/nlp/fuzzyMatcher` |
-| 5 | Entity extraction for "play song number seven" | `src/nlp/entityExtractor` |
+| 5 | Entity extraction for a song name and optional artist | `src/nlp/entityExtractor` |
 | 6 | Confidence-based resolution — refuses to guess | `src/nlp/confidence` |
 | 7 | Adaptive Audio Mode (noise-aware volume) | `src/adaptiveAudio` |
 | 8 | Real ML intent classifier, trained + evaluated | `ml/`, `src/nlp/intentClassifier` |
@@ -201,11 +201,16 @@ command vocabulary, which matters a lot for short, noisy utterances.
 | "previous song" / "go back" | `PREVIOUS_SONG` | skip back |
 | "increase volume" / "make it louder" / "turn the music up" | `INCREASE_VOLUME` | volume + step |
 | "decrease volume" / "make it quieter" / "turn the music down" | `DECREASE_VOLUME` | volume − step |
-| "play song number 7" / "play number seven" / "play the seventh one" / "track 7" | `PLAY_SONG` | jump to track 7 |
+| "play believer" / "play song believer" / "play thunder" | `PLAY_SONG` | search Spotify and play the most popular match |
+| "play believer by imagine dragons" | `PLAY_SONG` | play that artist's version |
 | anything else | `UNKNOWN` | *"Sorry, I didn't catch that."* |
 
-Numbers are understood as digits, cardinals and ordinals — `7`, `seven`, `seventh`,
-`number seven`, `song number seven`, `track 7`, `the seventh one` all resolve to `song_number = 7`.
+Songs are played **by name**. With a bare title the app asks Spotify for matches and plays the most
+popular one (Spotify exposes `popularity`, not play counts); adding an artist — "believer by imagine
+dragons" — restricts the choice to that artist.
+
+When a command is plausible but not certain, the app asks **"Did you mean ...? Say yes or no."**
+instead of making you repeat the whole sentence, and it stays silent for noise rather than nagging.
 
 ---
 

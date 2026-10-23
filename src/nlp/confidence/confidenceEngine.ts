@@ -31,8 +31,8 @@ export interface ConfidenceInput {
   asrConfidence?: number;
   /** Plausibility of the command in the current context, [0,1]. */
   contextScore: number;
-  hasSongNumber: boolean;
-  requiresSongNumber: boolean;
+  hasSongQuery: boolean;
+  requiresSongQuery: boolean;
   /** Execute threshold; defaults to EXECUTE_THRESHOLD. */
   threshold?: number;
 }
@@ -101,10 +101,10 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
     }
   }
 
-  // 3. A song-selection command without a number cannot be actioned.
-  if (input.requiresSongNumber && !input.hasSongNumber) {
+  // 3. A song request without a name cannot be actioned.
+  if (input.requiresSongQuery && !input.hasSongQuery) {
     confidence = Math.min(confidence, 0.45);
-    reasons.push('song number missing');
+    reasons.push('song name missing');
   }
 
   confidence = clamp01(confidence);

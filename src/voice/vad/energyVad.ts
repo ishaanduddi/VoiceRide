@@ -41,7 +41,7 @@ export const DEFAULT_VAD_CONFIG: VadConfig = {
   endThresholdDb: 4,
   minSpeechMs: 150,
   minSilenceMs: 500,
-  maxUtteranceMs: 6000,
+  maxUtteranceMs: 4500,
   noiseFloorAdaptation: 0.05,
   initialNoiseFloorDb: -50,
   minNoiseFloorDb: -70,
