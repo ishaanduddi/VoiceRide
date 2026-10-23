@@ -6,7 +6,7 @@
  * manual volume change" live in exactly one place.
  */
 
-import { AppError, NoActiveDeviceError } from '@/utils/errors';
+import { AppError, NoActiveDeviceError, SpotifyApiError } from '@/utils/errors';
 import { sleep } from '@/utils/async';
 import { createLogger } from '@/utils/logger';
 
@@ -78,6 +78,47 @@ export class SpotifyPlaybackController {
     log.info(`transferring playback to "${candidate.name}"`);
     await playbackApi.transferPlayback(candidate.id, true);
     return true;
+  }
+
+  /**
+   * A device we are allowed to control. Prefers the active one, then the phone
+   * itself, and excludes devices Spotify marks as restricted.
+   */
+  private async usableDeviceId(): Promise<string | undefined> {
+    try {
+      const devices = await playbackApi.getAvailableDevices();
+      const usable = devices.filter((device) => device.id && !device.is_restricted);
+      const active = usable.find((device) => device.is_active);
+      if (active?.id) return active.id ?? undefined;
+
+      const phone = usable.find((device) => /phone|smartphone/i.test(device.type));
+      return (phone ?? usable[0])?.id ?? undefined;
+    } catch (error) {
+      log.debug('could not list devices for volume targeting', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Moves playback to a non-restricted device, so a volume command has somewhere
+   * to land. Returns the device id, or undefined if there is nothing usable.
+   */
+  private async activateUsableDevice(): Promise<string | undefined> {
+    try {
+      const devices = await playbackApi.getAvailableDevices();
+      const usable = devices.filter((device) => device.id && !device.is_restricted);
+      const phone = usable.find((device) => /phone|smartphone/i.test(device.type));
+      const chosen = phone ?? usable.find((device) => !device.is_active) ?? usable[0];
+      if (!chosen?.id) return undefined;
+
+      // play: false — a volume command must not start playback.
+      await playbackApi.transferPlayback(chosen.id, false);
+      log.info(`moved playback to "${chosen.name}" to make volume controllable`);
+      return chosen.id;
+    } catch (error) {
+      log.debug('could not move playback to a usable device', error);
+      return undefined;
+    }
   }
 
   /**
@@ -199,7 +240,25 @@ export class SpotifyPlaybackController {
     const previousPercent = previousOverride ?? (await this.currentVolumePercent());
     const target = clamp(Math.round(percent), MIN_VOLUME_PERCENT, MAX_VOLUME_PERCENT);
 
-    await this.withDevice(() => playbackApi.setVolume(target));
+    /*
+     * Name the device explicitly. Without it Spotify applies the command to the
+     * active device, and if that one is restricted it answers
+     * "Player command failed: Restriction violated" even though another device
+     * (usually the phone) would accept it.
+     */
+    let deviceId = await this.usableDeviceId();
+    try {
+      await this.withDevice(() => playbackApi.setVolume(target, deviceId));
+    } catch (error) {
+      if (error instanceof SpotifyApiError && error.status === 403) {
+        const moved = await this.activateUsableDevice();
+        if (!moved) throw error;
+        deviceId = moved;
+        await this.withDevice(() => playbackApi.setVolume(target, deviceId));
+      } else {
+        throw error;
+      }
+    }
 
     /*
      * Verify it took effect. `supports_volume` is NOT reliable (Spotify reports

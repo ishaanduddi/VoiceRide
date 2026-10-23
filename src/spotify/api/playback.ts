@@ -47,11 +47,12 @@ export async function previous(): Promise<void> {
   await spotifyRequest<void>('/me/player/previous', { method: 'POST' });
 }
 
-export async function setVolume(volumePercent: number): Promise<void> {
+export async function setVolume(volumePercent: number, deviceId?: string): Promise<void> {
   const clamped = Math.max(0, Math.min(100, Math.round(volumePercent)));
   await spotifyRequest<void>('/me/player/volume', {
     method: 'PUT',
-    query: { volume_percent: clamped },
+    // Naming the device avoids targeting a restricted/incapable one.
+    query: { volume_percent: clamped, device_id: deviceId },
   });
 }
 

@@ -60,6 +60,24 @@ function errorFromResponse(status: number, payload: unknown, path: string): Erro
   if (status === 403) {
     if (/premium/i.test(message)) return new PremiumRequiredError(message);
 
+    const detail = reason ? `${message} (${reason})` : message;
+
+    // Volume is the one command a device can genuinely refuse: some outputs
+    // (TVs, speakers, and a few phones) do not accept app volume control and
+    // answer "Restriction violated".
+    if (path.includes('/volume')) {
+      return new SpotifyApiError(
+        status,
+        `Spotify refused the volume change: ${detail}. This device does not accept app volume control — ` +
+          'use its own volume buttons, or play on this phone.',
+        reason,
+      );
+    }
+
+    if (path.startsWith('/me/player')) {
+      return new SpotifyApiError(status, `Spotify refused the command: ${detail}.`, reason);
+    }
+
     // Spotify returns 403 when a token/app may not access a resource. For
     // playlists this usually means the app (Development Mode) cannot read that
     // particular playlist — e.g. one owned by someone else.
@@ -71,7 +89,7 @@ function errorFromResponse(status: number, payload: unknown, path: string): Erro
         reason,
       );
     }
-    return new SpotifyApiError(status, message, reason);
+    return new SpotifyApiError(status, detail, reason);
   }
   if (status === 404) {
     return new NoActiveDeviceError(
