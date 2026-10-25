@@ -154,14 +154,22 @@ export function useMicrophoneStream(
       }
       setPermissionDenied(false);
 
-      // Allows recording while the music keeps playing through the speaker.
-      // NOTE: `allowsBackgroundRecording` is intentionally NOT enabled here;
-      // it needs the android foreground service and belongs to the
-      // development-build stage (see docs/ROADMAP.md, Stage 2).
+      /*
+       * CRITICAL: `mixWithOthers` (not `doNotMix`).
+       *
+       * `doNotMix` requests exclusive audio focus, which makes Android pause
+       * every other app — including the Spotify app this app is controlling.
+       * Playback then "starts" (the API returns 204) but the rider hears
+       * nothing. Mixing lets Spotify keep playing while we listen.
+       */
       await setAudioModeAsync({
         playsInSilentMode: true,
         allowsRecording: true,
-        interruptionMode: 'doNotMix',
+        interruptionMode: 'mixWithOthers',
+        // Screen-off listening: keeps the audio session alive in the background.
+        // The microphone itself is kept alive by the foreground service (see
+        // src/voice/background/backgroundListening.ts).
+        allowsBackgroundRecording: true,
       });
 
       vad.reset();

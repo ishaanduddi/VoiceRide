@@ -6,12 +6,18 @@
  * manual volume change" live in exactly one place.
  */
 
-import { AppError, NoActiveDeviceError, SpotifyApiError } from '@/utils/errors';
+import {
+  getDeviceVolumePercent,
+  isDeviceVolumeAvailable,
+  setDeviceVolumePercent,
+} from '@/audio/deviceVolume';
 import { sleep } from '@/utils/async';
+import { AppError, NoActiveDeviceError, SpotifyApiError } from '@/utils/errors';
 import { createLogger } from '@/utils/logger';
 
 import * as playbackApi from '../api/playback';
 import { searchTracks } from '../api/search';
+import type { SpotifyDevice } from '../types';
 
 import {
   describeTrack,
@@ -30,6 +36,21 @@ const MAX_VOLUME_PERCENT = 100;
 const VOLUME_VERIFY_DELAY_MS = 250;
 /** Extra pause before retrying a volume change some devices drop. */
 const VOLUME_RETRY_DELAY_MS = 600;
+/** How long Spotify needs before a started track shows up as playing. */
+const PLAY_VERIFY_DELAY_MS = 450;
+/** How many times the playback state is re-read before giving up. */
+const PLAY_VERIFY_ATTEMPTS = 3;
+/** Pause after moving playback to another device before starting a track on it. */
+const TRANSFER_SETTLE_MS = 450;
+
+/** Case/punctuation-insensitive title, for "is this the track I asked for". */
+function normaliseTitle(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export type VolumeSource = 'voice' | 'programmatic' | 'adaptive';
 
@@ -68,15 +89,32 @@ function clamp(value: number, min: number, max: number): number {
 export class SpotifyPlaybackController {
   constructor(private readonly deps: PlaybackControllerDeps) {}
 
+  /** Devices we are allowed to control (Spotify marks some as restricted). */
+  private async usableDevices(): Promise<SpotifyDevice[]> {
+    try {
+      const devices = await playbackApi.getAvailableDevices();
+      return devices.filter((device) => device.id && !device.is_restricted);
+    } catch (error) {
+      log.debug('could not list Spotify devices', error);
+      return [];
+    }
+  }
+
+  /** Prefers the phone itself — the device a rider actually listens on. */
+  private pickPhone(devices: SpotifyDevice[]): SpotifyDevice | undefined {
+    const phone = devices.find((device) => /phone|smartphone|tablet/i.test(device.type));
+    return phone ?? devices[0];
+  }
+
   /** Picks any non-restricted device and transfers playback to it. */
   private async activateSomeDevice(): Promise<boolean> {
-    const devices = await playbackApi.getAvailableDevices();
-    const candidate =
-      devices.find((device) => device.id && !device.is_restricted) ??
-      devices.find((device) => device.id);
+    const devices = await this.usableDevices();
+    const candidate = devices.find((device) => device.is_active) ?? this.pickPhone(devices);
     if (!candidate?.id) return false;
+
     log.info(`transferring playback to "${candidate.name}"`);
-    await playbackApi.transferPlayback(candidate.id, true);
+    // play:false — waking a device for a command must not start unrelated audio.
+    await playbackApi.transferPlayback(candidate.id, false);
     return true;
   }
 
@@ -85,35 +123,26 @@ export class SpotifyPlaybackController {
    * itself, and excludes devices Spotify marks as restricted.
    */
   private async usableDeviceId(): Promise<string | undefined> {
-    try {
-      const devices = await playbackApi.getAvailableDevices();
-      const usable = devices.filter((device) => device.id && !device.is_restricted);
-      const active = usable.find((device) => device.is_active);
-      if (active?.id) return active.id ?? undefined;
+    const devices = await this.usableDevices();
+    const active = devices.find((device) => device.is_active);
+    if (active?.id) return active.id ?? undefined;
 
-      const phone = usable.find((device) => /phone|smartphone/i.test(device.type));
-      return (phone ?? usable[0])?.id ?? undefined;
-    } catch (error) {
-      log.debug('could not list devices for volume targeting', error);
-      return undefined;
-    }
+    return this.pickPhone(devices)?.id ?? undefined;
   }
 
   /**
-   * Moves playback to a non-restricted device, so a volume command has somewhere
-   * to land. Returns the device id, or undefined if there is nothing usable.
+   * Moves playback to a non-restricted device. Returns the device id, or
+   * undefined if there is nothing usable.
    */
   private async activateUsableDevice(): Promise<string | undefined> {
     try {
-      const devices = await playbackApi.getAvailableDevices();
-      const usable = devices.filter((device) => device.id && !device.is_restricted);
-      const phone = usable.find((device) => /phone|smartphone/i.test(device.type));
-      const chosen = phone ?? usable.find((device) => !device.is_active) ?? usable[0];
+      const devices = await this.usableDevices();
+      const chosen = this.pickPhone(devices);
       if (!chosen?.id) return undefined;
 
       // play: false — a volume command must not start playback.
       await playbackApi.transferPlayback(chosen.id, false);
-      log.info(`moved playback to "${chosen.name}" to make volume controllable`);
+      log.info(`moved playback to "${chosen.name}"`);
       return chosen.id;
     } catch (error) {
       log.debug('could not move playback to a usable device', error);
@@ -204,7 +233,7 @@ export class SpotifyPlaybackController {
 
     log.info(`search "${query}"${artist ? ` / ${artist}` : ''} -> "${describeSpotifyTrack(chosen)}"`);
 
-    await this.withDevice(() => playbackApi.play({ uris: [chosen.uri] }));
+    await this.startTrack(chosen.uri, chosen.name);
 
     return {
       name: chosen.name,
@@ -213,7 +242,82 @@ export class SpotifyPlaybackController {
     };
   }
 
+  /**
+   * Starts one track and confirms that it is actually playing.
+   *
+   * Spotify answers 204 to `PUT /me/player/play` even when the active device is
+   * one it cannot drive, so an HTTP success is NOT proof of sound. The state is
+   * read back, and if nothing started the track is retried on a device Spotify
+   * will control (the phone). This is the difference between "the app says it is
+   * playing" and "the rider hears music".
+   */
+  private async startTrack(uri: string, name: string): Promise<void> {
+    try {
+      await this.withDevice(() => playbackApi.play({ uris: [uri] }));
+    } catch (error) {
+      // Not fatal yet: Spotify may refuse the *active* device while accepting
+      // the phone. The state check below decides whether music actually plays.
+      log.warn(`play request failed for "${name}"`, error);
+    }
+
+    if (await this.confirmPlaying(uri, name)) return;
+
+    const devices = await this.usableDevices();
+    const target = this.pickPhone(devices);
+
+    if (!target?.id) {
+      throw new AppError(
+        'SPOTIFY_PLAYBACK_UNAVAILABLE',
+        `Spotify found "${name}" but there is no active Spotify device. Open the Spotify app on this ` +
+          'phone and tap play once, then try again.',
+      );
+    }
+
+    log.info(`"${name}" did not start; moving playback to "${target.name}" and retrying`);
+    await playbackApi
+      .transferPlayback(target.id, false)
+      .catch((error) => log.warn('could not move playback to the phone', error));
+    await sleep(TRANSFER_SETTLE_MS);
+
+    await playbackApi
+      .play({ uris: [uri] }, target.id)
+      .catch((error) => log.warn('retry play failed', error));
+
+    if (await this.confirmPlaying(uri, name)) return;
+
+    const state = await this.getState().catch(() => null);
+    const where = state?.device?.name ?? target.name;
+
+    throw new AppError(
+      'SPOTIFY_PLAYBACK_UNAVAILABLE',
+      `Spotify found "${name}" but nothing is playing on "${where}". Open the Spotify app on this ` +
+        'phone, tap play once so it registers as a device, then try again.',
+    );
+  }
+
+  /** Re-reads the player a few times, since playback starts asynchronously. */
+  private async confirmPlaying(uri: string, name: string): Promise<boolean> {
+    for (let attempt = 0; attempt < PLAY_VERIFY_ATTEMPTS; attempt += 1) {
+      await sleep(PLAY_VERIFY_DELAY_MS);
+
+      const state = await this.getState().catch(() => null);
+      if (!state?.is_playing || !state.item) continue;
+
+      // Spotify sometimes relinks a track to another album, which changes the
+      // URI but not the name, so both are accepted.
+      if (state.item.uri === uri) return true;
+      if (normaliseTitle(state.item.name) === normaliseTitle(name)) return true;
+    }
+
+    return false;
+  }
+
   private async currentVolumePercent(): Promise<number> {
+    // The phone's own volume is the one the rider hears and the one the volume
+    // keys change, so it wins whenever it is available.
+    const devicePercent = await getDeviceVolumePercent();
+    if (devicePercent !== undefined) return devicePercent;
+
     const state = await this.getState().catch(() => null);
     return (
       state?.device?.volume_percent ??
@@ -224,10 +328,7 @@ export class SpotifyPlaybackController {
 
   /** Relative volume change, e.g. +5 or -5 percentage points. */
   async changeVolumeBy(delta: number, source: VolumeSource = 'voice'): Promise<VolumeChange> {
-    const state = await this.getState().catch(() => null);
-    const previousPercent =
-      state?.device?.volume_percent ?? this.deps.getKnownVolumePercent?.() ?? DEFAULT_VOLUME_PERCENT;
-
+    const previousPercent = await this.currentVolumePercent();
     return this.setVolumeAbsolute(previousPercent + delta, source, previousPercent);
   }
 
@@ -241,10 +342,31 @@ export class SpotifyPlaybackController {
     const target = clamp(Math.round(percent), MIN_VOLUME_PERCENT, MAX_VOLUME_PERCENT);
 
     /*
-     * Name the device explicitly. Without it Spotify applies the command to the
-     * active device, and if that one is restricted it answers
-     * "Player command failed: Restriction violated" even though another device
-     * (usually the phone) would accept it.
+     * 1. The phone's own media volume.
+     *
+     * This is what "turn the volume up" means to a rider: the same stream the
+     * hardware volume keys control. Spotify's API has no equivalent — it only
+     * changes Spotify's internal level, which this class of device refuses with
+     * "Restriction violated".
+     */
+    if (isDeviceVolumeAvailable) {
+      const applied = await setDeviceVolumePercent(target);
+      if (applied !== undefined) {
+        this.deps.onVolumeChanged?.(applied, source);
+        return {
+          previousPercent,
+          volumePercent: applied,
+          appliedDelta: applied - previousPercent,
+        };
+      }
+
+      log.warn('the native volume module refused the request; trying the Spotify API');
+    }
+
+    /*
+     * 2. Fallback for builds without the native module (Expo Go, iOS, or an APK
+     *    made before it was added): Spotify's own volume, targeting a device it
+     *    will actually drive.
      */
     let deviceId = await this.usableDeviceId();
     try {

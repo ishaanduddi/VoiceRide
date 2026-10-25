@@ -1,0 +1,16 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <application>
+    <!--
+      Keeps the process (and therefore the microphone) alive while the screen is
+      off. Android 9+ refuses microphone access to apps that are in the
+      background, so Ride Mode needs a foreground service with the
+      `microphone` type. Started/stopped from VoiceSystemModule.
+    -->
+    <service
+      android:name="expo.modules.voicesystem.VoiceRideForegroundService"
+      android:exported="false"
+      android:foregroundServiceType="microphone" />
+  </application>
+
+</manifest>

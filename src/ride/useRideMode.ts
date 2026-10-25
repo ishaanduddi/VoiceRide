@@ -19,9 +19,10 @@ import { dispatchInterpretation } from '@/nlp/dispatcher/commandDispatcher';
 import { interpretCommand } from '@/nlp/pipeline';
 import { adaptiveAudio, playbackController, voiceController } from '@/services/appServices';
 import { contextManager } from '@/state/contextStore';
-import { libraryStore } from '@/state/libraryStore';
 import { sessionStore } from '@/state/sessionStore';
 import { settingsStore } from '@/state/settingsStore';
+import { getDeviceVolumePercent, isDeviceVolumeAvailable } from '@/audio/deviceVolume';
+import { startBackgroundListening, stopBackgroundListening } from '@/voice/background/backgroundListening';
 import { toUserMessage } from '@/utils/errors';
 import { createLogger } from '@/utils/logger';
 import { audioConfig } from '@/config';
@@ -44,6 +45,8 @@ export interface RideState {
   noiseZone: NoiseZone;
   ambientDbfs?: number;
   adaptiveAudioEnabled: boolean;
+  /** The microphone foreground service is running (screen-off listening). */
+  background?: boolean;
 }
 
 /** Audio kept before speech onset so the first phoneme is never clipped. */
@@ -126,12 +129,14 @@ export function useRideMode(): UseRideModeResult {
   const refreshDevice = useCallback(async () => {
     try {
       const playback = await playbackController.getState();
+      // Prefer the phone's real volume: that is what voice commands change now.
+      const deviceVolume = await getDeviceVolumePercent();
       setActiveDevice(
         playback?.device
           ? {
               name: playback.device.name,
-              volumePercent: playback.device.volume_percent ?? undefined,
-              supportsVolume: playback.device.supports_volume,
+              volumePercent: deviceVolume ?? playback.device.volume_percent ?? undefined,
+              supportsVolume: isDeviceVolumeAvailable || playback.device.supports_volume,
             }
           : undefined,
       );
@@ -205,10 +210,11 @@ export function useRideMode(): UseRideModeResult {
       hapticTap(settingsStore.getState().hapticsEnabled);
       say(spoken);
 
-      // A volume command is the one case where the device can silently ignore
-      // us, so re-read the device afterwards to keep the screen honest.
+      // A volume command, or a song request that may have failed to start, is
+      // the case where the device can silently disagree with us, so re-read it
+      // to keep the screen honest.
       const intent = result.interpretation.prediction.intent;
-      if (intent === 'INCREASE_VOLUME' || intent === 'DECREASE_VOLUME') {
+      if (intent === 'INCREASE_VOLUME' || intent === 'DECREASE_VOLUME' || intent === 'PLAY_SONG') {
         void refreshDevice();
       }
     } catch (error) {
@@ -346,23 +352,15 @@ export function useRideMode(): UseRideModeResult {
       return;
     }
 
-    if (!libraryStore.getState().trackMap) {
-      setState((previous) => ({
-        ...previous,
-        status: 'error',
-        error: 'Select a playlist first.',
-      }));
-      return;
-    }
-
     const settings = settingsStore.getState();
 
     // Seed the context with the real Spotify state before listening.
     try {
       const playback = await playbackController.getState();
+      const deviceVolume = await getDeviceVolumePercent();
       contextManager.setState({
         isPlaying: playback?.is_playing ?? false,
-        volumePercent: playback?.device?.volume_percent ?? undefined,
+        volumePercent: deviceVolume ?? playback?.device?.volume_percent ?? undefined,
       });
       await refreshDevice();
     } catch (error) {
@@ -390,6 +388,11 @@ export function useRideMode(): UseRideModeResult {
       return;
     }
 
+    // Keep the microphone usable once the screen turns off / the app is
+    // backgrounded. Android blocks background mic access without this.
+    startBackgroundListening();
+    setState((previous) => ({ ...previous, background: true }));
+
     hapticDouble(settings.hapticsEnabled);
     setState((previous) => ({
       ...previous,
@@ -400,12 +403,18 @@ export function useRideMode(): UseRideModeResult {
 
   const stop = useCallback(() => {
     microphoneRef.current.stop();
+    stopBackgroundListening();
     adaptiveAudio.setEnabled(false);
     // Drop any pending yes/no question so it cannot leak into the next ride.
     voiceController.reset();
     contextManager.setState({ rideMode: false, adaptiveAudio: false });
     stopSpeaking();
-    setState((previous) => ({ ...previous, status: 'stopped', adaptiveAudioEnabled: false }));
+    setState((previous) => ({
+      ...previous,
+      status: 'stopped',
+      adaptiveAudioEnabled: false,
+      background: false,
+    }));
   }, []);
 
   const submitManualCommand = useCallback(async (text: string) => {
@@ -438,10 +447,12 @@ export function useRideMode(): UseRideModeResult {
     speak(outcome.spoken, settingsStore.getState().confirmationSpeechEnabled);
   }, []);
 
-  // Never leave the microphone open when the screen goes away.
+  // Never leave the microphone (or the foreground service) running when the
+  // screen goes away.
   useEffect(
     () => () => {
       microphoneRef.current.stop();
+      stopBackgroundListening();
       adaptiveAudio.setEnabled(false);
       stopSpeaking();
       contextManager.setState({ rideMode: false, adaptiveAudio: false });

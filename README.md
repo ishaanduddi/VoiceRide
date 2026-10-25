@@ -188,9 +188,10 @@ command vocabulary, which matters a lot for short, noisy utterances.
 ## How to use it
 
 1. **Connect Spotify** — OAuth 2.0 Authorization Code + PKCE against your own account.
-2. **Choose a playlist** — VoiceRiders numbers the playable tracks (`1..N`) and keeps a local
-   `number → trackId` map.
-3. **Start Ride Mode** — microphone + VAD start, the screen shows only what a rider needs.
+2. **(Optional) choose a playlist** — for browsing and numbered track lists. Playback does not need
+   one: any song can be requested by name.
+3. **Start Ride Mode** — microphone + VAD start, the screen shows only what a rider needs. A
+   foreground service keeps listening when the screen is off.
 4. **Speak.** No wake word.
 
 | You say | Intent | Action |
@@ -199,11 +200,16 @@ command vocabulary, which matters a lot for short, noisy utterances.
 | "resume" / "continue playing" / "play" | `RESUME`, `PLAY` | resume playback |
 | "next song" / "skip this song" / "play the next track" | `NEXT_SONG` | skip forward |
 | "previous song" / "go back" | `PREVIOUS_SONG` | skip back |
-| "increase volume" / "make it louder" / "turn the music up" | `INCREASE_VOLUME` | volume + step |
-| "decrease volume" / "make it quieter" / "turn the music down" | `DECREASE_VOLUME` | volume − step |
+| "increase volume" / "make it louder" / "turn the music up" | `INCREASE_VOLUME` | **phone** media volume + step |
+| "decrease volume" / "make it quieter" / "turn the music down" | `DECREASE_VOLUME` | **phone** media volume − step |
 | "play believer" / "play song believer" / "play thunder" | `PLAY_SONG` | search Spotify and play the most popular match |
 | "play believer by imagine dragons" | `PLAY_SONG` | play that artist's version |
 | anything else | `UNKNOWN` | *"Sorry, I didn't catch that."* |
+
+Volume is the **phone's own media volume**, the same stream the hardware volume keys change — not
+Spotify's internal level. Spotify exposes no equivalent, and many devices answer its volume endpoint
+with `Restriction violated`, so the app drives `AudioManager.STREAM_MUSIC` through a small local
+native module (`modules/voice-system`).
 
 Songs are played **by name**. With a bare title the app asks Spotify for matches and plays the most
 popular one (Spotify exposes `popularity`, not play counts); adding an artist — "believer by imagine
@@ -211,6 +217,11 @@ dragons" — restricts the choice to that artist.
 
 When a command is plausible but not certain, the app asks **"Did you mean ...? Say yes or no."**
 instead of making you repeat the whole sentence, and it stays silent for noise rather than nagging.
+
+With the screen off, Ride Mode keeps listening: the app runs an Android foreground service of type
+`microphone` (`modules/voice-system`) and keeps the audio session alive
+(`allowsBackgroundRecording`). It also **mixes** with other audio instead of taking exclusive focus,
+so Spotify keeps playing while the microphone is open.
 
 ---
 
@@ -295,9 +306,12 @@ VoiceRiders/
 │   ├── state/              # observable stores (session, library, settings, context)
 │   ├── services/            # composition root + bootstrap
 │   ├── ride/                # Ride Mode orchestration hook
+│   ├── audio/               # the phone's own media volume
 │   ├── effects/             # TTS + haptics
 │   ├── storage/             # secure tokens + preferences
 │   └── utils/               # logger · errors · async
+├── modules/voice-system/    # local Expo module (Kotlin): media volume +
+│                            # microphone foreground service for screen-off use
 ├── ml/                      # Python: dataset, training, evaluation, WER
 ├── relay/                   # HTTPS OAuth relay Spotify now requires
 ├── docs/                    # architecture, setup, security, evaluation, roadmap

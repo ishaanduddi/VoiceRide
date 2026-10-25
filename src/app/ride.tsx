@@ -78,16 +78,27 @@ export default function RideModeScreen() {
         />
       ) : null}
 
-      <Card title={library.selectedPlaylistName ?? 'No playlist'}>
-        <Row label="Tracks" value={`${library.trackMap?.entries.length ?? 0}`} />
+      <Card
+        title={library.selectedPlaylistName ?? 'No playlist selected'}
+        subtitle="A playlist is optional — say “play believer” to play any song on Spotify."
+      >
+        <Row label="Playlist tracks" value={`${library.trackMap?.entries.length ?? 0}`} />
         <Row label="Current track" value={context.currentTrackName ?? '—'} />
         <Row label="Playback" value={context.isPlaying ? 'Playing' : 'Paused / idle'} />
         <Row
           label="Volume"
-          value={context.volumePercent !== undefined ? `${context.volumePercent}%` : 'unknown'}
+          value={
+            context.volumePercent !== undefined
+              ? `${context.volumePercent}% (phone media volume)`
+              : 'unknown'
+          }
         />
         <Row label="Engine" value={describeAsrEngine()} />
         <Row label="Device" value={activeDevice?.name ?? 'none active'} />
+        <Row
+          label="Screen off"
+          value={state.background ? 'keeps listening' : 'stops when the screen locks'}
+        />
       </Card>
 
       <Card

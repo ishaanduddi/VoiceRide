@@ -23,7 +23,8 @@ export default function HomeScreen() {
 
   const connected = session.status === 'connected';
   const trackCount = library.trackMap?.entries.length ?? 0;
-  const canRide = connected && trackCount > 0;
+  // A playlist is optional now: songs are played by name.
+  const canRide = connected;
 
   const sessionTone: PillTone =
     session.status === 'connected' ? 'success' : session.status === 'connecting' ? 'warning' : 'neutral';
@@ -56,7 +57,8 @@ export default function HomeScreen() {
       <Card
         title="Selected playlist"
         subtitle="Optional. You can also just say “play believer” — any song on Spotify."
-      >        <Text style={styles.playlistName}>
+      >
+        <Text style={styles.playlistName}>
           {library.selectedPlaylistName ?? 'No playlist selected yet'}
         </Text>
         <Text style={styles.meta}>
@@ -70,10 +72,10 @@ export default function HomeScreen() {
         />
       </Card>
 
-      <Card title="Adaptive Audio Mode" subtitle="Raises the volume as the road gets louder.">
+      <Card title="Adaptive Audio Mode" subtitle="Raises the phone volume as the road gets louder.">
         <SettingToggle
           label="Enable Adaptive Audio"
-          description="Uses the microphone to estimate ambient noise and adjusts Spotify volume in small steps."
+          description="Uses the microphone to estimate ambient noise and adjusts the phone's media volume in small steps."
           value={settings.adaptiveAudioEnabled}
           onValueChange={(value) => void updateSettings({ adaptiveAudioEnabled: value })}
         />
@@ -86,7 +88,7 @@ export default function HomeScreen() {
       <Button title="Start Ride Mode" onPress={() => router.push('/ride')} disabled={!canRide} />
       {!canRide ? (
         <Text style={styles.hint}>
-          {connected ? 'Choose a playlist first.' : 'Connect Spotify first.'}
+          {connected ? 'Connecting…' : 'Connect Spotify first.'}
         </Text>
       ) : null}
 

@@ -22,7 +22,7 @@ export async function getAvailableDevices(): Promise<SpotifyDevice[]> {
   return response.devices ?? [];
 }
 
-export async function play(request: PlayRequest = {}): Promise<void> {
+export async function play(request: PlayRequest = {}, deviceId?: string): Promise<void> {
   const body: Record<string, unknown> = {};
   if (request.contextUri) body.context_uri = request.contextUri;
   if (request.uris) body.uris = request.uris;
@@ -32,6 +32,8 @@ export async function play(request: PlayRequest = {}): Promise<void> {
   await spotifyRequest<void>('/me/player/play', {
     method: 'PUT',
     body: Object.keys(body).length > 0 ? body : undefined,
+    // Naming the device keeps a restricted/incapable device out of the loop.
+    query: deviceId ? { device_id: deviceId } : undefined,
   });
 }
 
