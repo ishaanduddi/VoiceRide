@@ -64,26 +64,30 @@ class VoiceSystemModule : Module() {
 
     /** Starts the microphone foreground service (no-op if already running). */
     Function("startForegroundService") {
-      val context = appContext.reactContext ?: return@Function
-      val intent = Intent(context, VoiceRideForegroundService::class.java)
+      val context = appContext.reactContext
+      if (context != null) {
+        val intent = Intent(context, VoiceRideForegroundService::class.java)
 
-      try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-          context.startForegroundService(intent)
-        } else {
-          context.startService(intent)
+        try {
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+          } else {
+            context.startService(intent)
+          }
+        } catch (error: Exception) {
+          // Android 12+ can refuse a background start; Ride Mode is started
+          // from the foreground, so this is only a safety net.
+          android.util.Log.w("VoiceSystem", "could not start the ride service", error)
         }
-      } catch (error: Exception) {
-        // Android 12+ can refuse a background start; Ride Mode is started from
-        // the foreground, so this is only a safety net.
-        android.util.Log.w("VoiceSystem", "could not start the ride service", error)
       }
     }
 
     /** Stops the foreground service (called when Ride Mode stops). */
     Function("stopForegroundService") {
-      val context = appContext.reactContext ?: return@Function
-      context.stopService(Intent(context, VoiceRideForegroundService::class.java))
+      val context = appContext.reactContext
+      if (context != null) {
+        context.stopService(Intent(context, VoiceRideForegroundService::class.java))
+      }
     }
   }
 }

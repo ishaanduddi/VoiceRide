@@ -112,7 +112,7 @@ Before submitting:
 | Item | Android (Play) | iOS (App Store) |
 |------|----------------|-----------------|
 | Microphone | Declare `RECORD_AUDIO`; justify it as the core feature | `NSMicrophoneUsageDescription` is set by the `expo-audio` plugin |
-| Background audio | Foreground service + notification declared | `UIBackgroundModes: audio` declared |
+| Background audio | Foreground service (`modules/voice-system`, type `microphone`) + ongoing notification, started only while Ride Mode is on | `UIBackgroundModes: audio` declared |
 | Privacy | Data-safety form: audio processed on-device unless a cloud ASR endpoint is configured | Privacy nutrition labels: same statement |
 | Encryption | n/a | `usesNonExemptEncryption: false` already set |
 | Review note | — | Tell reviewers that playback requires a **Premium** Spotify account and that Spotify is a third-party service |
