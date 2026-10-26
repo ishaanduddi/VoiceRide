@@ -165,7 +165,7 @@ The brief asks for latency, resource use and false-activation counts. Measure th
 | CPU / RAM | Android Studio Profiler or Xcode Instruments against a development build |
 | Battery | Android `dumpsys batterystats`, iOS Energy Log, on a 30-minute ride |
 | False activations | count dispatches with intent ≠ the spoken one while not speaking |
-| Missed commands | count `decision === 'reject'`/`'confirm'` for utterances the rider considers valid |
+| Missed commands | count `decision === 'reject'` for utterances the rider considers valid |
 
 `src/utils/logger.ts` prefixes every subsystem (`[VoiceRiders:voice:asr]`), so a single
 `npx expo start` console gives a readable trace of the whole pipeline.

@@ -10,7 +10,6 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import androidx.core.app.NotificationCompat
 
 /**
  * Foreground service that keeps VoiceRiders' microphone usable with the screen
@@ -20,6 +19,9 @@ import androidx.core.app.NotificationCompat
  * background, and Android 12+ freezes background processes. A foreground
  * service of type `microphone` is the supported way to keep listening, which is
  * exactly what a rider needs: the phone stays in a pocket with the screen off.
+ *
+ * Deliberately built on the platform `Notification.Builder` (no androidx
+ * dependency) so the module stays easy to compile.
  */
 class VoiceRideForegroundService : Service() {
 
@@ -81,14 +83,21 @@ class VoiceRideForegroundService : Service() {
       )
     }
 
-    return NotificationCompat.Builder(this, CHANNEL_ID)
+    val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      Notification.Builder(this, CHANNEL_ID)
+    } else {
+      @Suppress("DEPRECATION")
+      Notification.Builder(this)
+    }
+
+    return builder
       .setContentTitle("VoiceRiders is listening")
       .setContentText("Say a command — the screen can stay off")
       .setSmallIcon(android.R.drawable.ic_btn_speak_now)
       .setOngoing(true)
-      .setSilent(true)
-      .setPriority(NotificationCompat.PRIORITY_LOW)
-      .setCategory(NotificationCompat.CATEGORY_SERVICE)
+      .setOnlyAlertOnce(true)
+      .setPriority(Notification.PRIORITY_LOW)
+      .setCategory(Notification.CATEGORY_SERVICE)
       .setContentIntent(contentIntent)
       .build()
   }

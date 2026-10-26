@@ -1,28 +1,54 @@
 package expo.modules.voicesystem
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.AudioDeviceInfo
+import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioRecord
+import android.media.MediaRecorder
 import android.os.Build
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * Two things the Spotify Web API cannot do for a rider:
+ * Three things the Spotify Web API and `expo-audio` cannot do for a rider:
  *
  *  1. Change the phone's own media volume. `PUT /me/player/volume` changes
  *     Spotify's internal volume, which many devices refuse ("Restriction
- *     violated"). Riders want the phone volume keys' effect, so this module
- *     drives `AudioManager.STREAM_MUSIC` directly.
+ *     violated").
  *
  *  2. Keep the microphone alive with the screen off. See
  *     [VoiceRideForegroundService].
  *
- * All values cross the bridge as percentages (0-100) so the JS side never has
- * to know the device's step count.
+ *  3. Choose WHICH microphone is used. `expo-audio`'s `AudioStream` always opens
+ *     the platform default input, so with earphones connected the rider could not
+ *     force the headset mic. This module opens its own [AudioRecord] and calls
+ *     `setPreferredDevice`, which is the only Android API that actually pins the
+ *     input.
+ *
+ * Volume values cross the bridge as percentages (0-100) so the JS side never has
+ * to know the device's step count. Captured audio is emitted as 100 ms chunks of
+ * mono little-endian float32 (`audioBuffer` event).
  */
 class VoiceSystemModule : Module() {
+
+  private var captureRecord: AudioRecord? = null
+  private var captureJob: Job? = null
+  private val captureScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+  private var activeInputName: String? = null
 
   private fun audioManager(): AudioManager? =
     appContext.reactContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -30,8 +56,74 @@ class VoiceSystemModule : Module() {
   private fun maxVolume(audio: AudioManager): Int =
     audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
 
+  /** Inputs that are actually microphones (headset, USB, Bluetooth), best first. */
+  private fun preferredInputTypes(): List<Int> {
+    val types = mutableListOf(
+      AudioDeviceInfo.TYPE_WIRED_HEADSET,
+      AudioDeviceInfo.TYPE_USB_HEADSET,
+      AudioDeviceInfo.TYPE_USB_DEVICE,
+      AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+    )
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      types.add(AudioDeviceInfo.TYPE_BLE_HEADSET)
+    }
+    return types
+  }
+
+  /**
+   * `requestedId > 0` pins that exact device; otherwise a connected headset wins
+   * over the built-in microphone, which is the "always use my earphones" default.
+   */
+  private fun chooseInput(devices: List<AudioDeviceInfo>, requestedId: Int): AudioDeviceInfo? {
+    if (requestedId > 0) {
+      devices.firstOrNull { it.id == requestedId }?.let { return it }
+    }
+
+    val preferred = preferredInputTypes()
+    return devices.firstOrNull { it.type in preferred }
+      ?: devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
+      ?: devices.firstOrNull()
+  }
+
+  private fun inputTypeName(type: Int): String = when (type) {
+    AudioDeviceInfo.TYPE_BUILTIN_MIC -> "Built-in microphone"
+    AudioDeviceInfo.TYPE_WIRED_HEADSET -> "Wired headset"
+    AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "Wired headphones"
+    AudioDeviceInfo.TYPE_USB_HEADSET -> "USB headset"
+    AudioDeviceInfo.TYPE_USB_DEVICE -> "USB audio"
+    AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth headset"
+    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Bluetooth audio"
+    AudioDeviceInfo.TYPE_TELEPHONY -> "Call audio"
+    else ->
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && type == AudioDeviceInfo.TYPE_BLE_HEADSET) {
+        "Bluetooth LE headset"
+      } else {
+        "Audio input"
+      }
+  }
+
+  private fun stopCapture() {
+    captureJob?.cancel()
+    captureJob = null
+
+    captureRecord?.let { record ->
+      try {
+        record.stop()
+      } catch (_: IllegalStateException) {
+        // Already stopped.
+      }
+      record.release()
+    }
+    captureRecord = null
+    activeInputName = null
+  }
+
   override fun definition() = ModuleDefinition {
     Name("VoiceSystem")
+
+    Events("audioBuffer")
+
+    // ---------------------------------------------------------------- volume
 
     /** Current media volume as 0-100. */
     AsyncFunction("getMediaVolume") {
@@ -62,6 +154,136 @@ class VoiceSystemModule : Module() {
       maxVolume(audio)
     }
 
+    // ------------------------------------------------------------ microphone
+
+    /**
+     * Every available microphone, so the rider can pick one.
+     * `id` is Android's AudioDeviceInfo id — pass it to `startCapture`.
+     */
+    AsyncFunction("listInputs") {
+      val audio = audioManager() ?: return@AsyncFunction emptyList<Map<String, Any?>>()
+
+      audio.getDevices(AudioManager.GET_DEVICES_INPUTS)
+        .filter { it.isSource }
+        .map { device ->
+          mapOf(
+            "id" to device.id,
+            "name" to (device.productName?.toString()?.takeIf { it.isNotBlank() }
+              ?: inputTypeName(device.type)),
+            "type" to inputTypeName(device.type),
+            "isBuiltIn" to (device.type == AudioDeviceInfo.TYPE_BUILTIN_MIC)
+          )
+        }
+    }
+
+    /** Name of the input actually capturing, once `startCapture` has run. */
+    AsyncFunction("getActiveInputName") {
+      activeInputName
+    }
+
+    /**
+     * Starts PCM capture. `inputId <= 0` means "automatic": a connected headset
+     * is preferred, otherwise the built-in microphone.
+     *
+     * Returns false when the microphone could not be opened, so JS can fall back
+     * to `expo-audio` instead of going silent.
+     */
+    AsyncFunction("startCapture") { sampleRate: Int, inputId: Int ->
+      val context = appContext.reactContext
+      val audio = audioManager()
+
+      if (context == null || audio == null) {
+        return@AsyncFunction false
+      }
+
+      val granted = context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+        PackageManager.PERMISSION_GRANTED
+
+      if (!granted) {
+        return@AsyncFunction false
+      }
+
+      stopCapture()
+
+      val devices = audio.getDevices(AudioManager.GET_DEVICES_INPUTS).toList()
+      val chosenInput = chooseInput(devices, inputId)
+
+      val channelConfig = AudioFormat.CHANNEL_IN_MONO
+      val encoding = AudioFormat.ENCODING_PCM_FLOAT
+      val minBuffer = AudioRecord.getMinBufferSize(sampleRate, channelConfig, encoding)
+
+      if (minBuffer <= 0) {
+        return@AsyncFunction false
+      }
+
+      val chunkSamples = max(sampleRate / 10, 160) // ~100 ms
+      val bufferBytes = max(minBuffer, chunkSamples * 4 * 2)
+
+      val record = AudioRecord(
+        MediaRecorder.AudioSource.MIC,
+        sampleRate,
+        channelConfig,
+        encoding,
+        bufferBytes
+      )
+
+      if (record.state != AudioRecord.STATE_INITIALIZED) {
+        record.release()
+        return@AsyncFunction false
+      }
+
+      // This is the whole point: pin the input instead of taking the default.
+      if (chosenInput != null) {
+        record.setPreferredDevice(chosenInput)
+      }
+
+      try {
+        record.startRecording()
+      } catch (error: IllegalStateException) {
+        record.release()
+        android.util.Log.w("VoiceSystem", "could not start the microphone", error)
+        return@AsyncFunction false
+      }
+
+      captureRecord = record
+      activeInputName = record.routedDevice?.productName?.toString()?.takeIf { it.isNotBlank() }
+        ?: chosenInput?.productName?.toString()?.takeIf { it.isNotBlank() }
+
+      captureJob = captureScope.launch {
+        val floats = FloatArray(chunkSamples)
+
+        while (isActive) {
+          val read = record.read(floats, 0, floats.size, AudioRecord.READ_BLOCKING)
+
+          if (read > 0) {
+            val bytes = ByteArray(read * 4)
+            ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+              .put(floats, 0, read)
+
+            val payload = mapOf(
+              "data" to bytes,
+              "sampleRate" to sampleRate,
+              "channels" to 1
+            )
+
+            // Delivery is marshalled to the JS queue by expo-modules-core.
+            sendEvent("audioBuffer", payload)
+          } else if (read < 0) {
+            break
+          }
+        }
+      }
+
+      true
+    }
+
+    /** Stops capture and releases the microphone. */
+    Function("stopCapture") {
+      stopCapture()
+    }
+
+    // ------------------------------------------------------ background service
+
     /** Starts the microphone foreground service (no-op if already running). */
     Function("startForegroundService") {
       val context = appContext.reactContext
@@ -88,6 +310,10 @@ class VoiceSystemModule : Module() {
       if (context != null) {
         context.stopService(Intent(context, VoiceRideForegroundService::class.java))
       }
+    }
+
+    OnDestroy {
+      stopCapture()
     }
   }
 }

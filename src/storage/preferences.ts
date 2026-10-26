@@ -21,8 +21,11 @@ export type AdaptiveAudioProfile = 'conservative' | 'balanced' | 'aggressive';
  * correctly-heard commands (especially "increase volume" / "decrease volume",
  * which the ambiguity penalty reduces further) fell below it and asked the rider
  * to repeat instead of acting.
+ *
+ * v3: microphone selection. Existing installs start on "automatic", which
+ * prefers a connected headset, so no value needs migrating.
  */
-export const PREFERENCES_VERSION = 2;
+export const PREFERENCES_VERSION = 3;
 
 export interface Preferences {
   preferencesVersion: number;
@@ -38,6 +41,11 @@ export interface Preferences {
   volumeStepPercent: number;
   /** How aggressively Adaptive Audio Mode shifts the volume. */
   adaptiveAudioProfile: AdaptiveAudioProfile;
+  /**
+   * Android microphone to capture from (`AudioDeviceInfo.id`), or null for
+   * automatic — which prefers a connected headset over the phone's own mic.
+   */
+  microphoneInputId: number | null;
   /** Playlist id the user last selected. */
   lastPlaylistId?: string;
 }
@@ -53,6 +61,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   // reproduce the brief's example exactly.
   volumeStepPercent: 5,
   adaptiveAudioProfile: 'balanced',
+  microphoneInputId: null,
   lastPlaylistId: undefined,
 };
 
@@ -65,10 +74,12 @@ export async function loadPreferences(): Promise<Preferences> {
     const merged: Preferences = { ...DEFAULT_PREFERENCES, ...parsed };
 
     if ((parsed.preferencesVersion ?? 1) < PREFERENCES_VERSION) {
-      // Thresholds: the old default was not a deliberate choice, so migrate it.
-      merged.confidenceThreshold = DEFAULT_PREFERENCES.confidenceThreshold;
+      if ((parsed.preferencesVersion ?? 1) < 2) {
+        // Thresholds: the old default was not a deliberate choice, so migrate it.
+        merged.confidenceThreshold = DEFAULT_PREFERENCES.confidenceThreshold;
+      }
       merged.preferencesVersion = PREFERENCES_VERSION;
-      log.info('migrated preferences to v2 (execute threshold lowered to 0.60)');
+      log.info('migrated preferences to v3 (microphone selection added)');
       await savePreferences(merged);
     }
 

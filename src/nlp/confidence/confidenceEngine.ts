@@ -2,7 +2,7 @@
  * Confidence engine (step 10 of the pipeline).
  *
  * Combines ASR confidence, intent confidence, fuzzy similarity and context
- * into one score, then decides execute / confirm / reject.
+ * into one score, then decides execute / reject.
  *
  * The critical safety property: fuzzy similarity ALONE can never execute a
  * command. Because 45% of the score is the (fused) intent probability and
@@ -17,7 +17,6 @@ import type { Decision, Intent, IntentPrediction } from '../types';
 import {
   AMBIGUITY_PENALTY,
   CONFIDENCE_WEIGHTS,
-  CONFIRM_THRESHOLD,
   DEFAULT_ASR_CONFIDENCE,
   EXECUTE_THRESHOLD,
   MIN_MARGIN,
@@ -110,8 +109,7 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
   confidence = clamp01(confidence);
 
   const threshold = input.threshold ?? EXECUTE_THRESHOLD;
-  const decision: Decision =
-    confidence >= threshold ? 'execute' : confidence >= CONFIRM_THRESHOLD ? 'confirm' : 'reject';
+  const decision: Decision = confidence >= threshold ? 'execute' : 'reject';
 
   reasons.push(`final=${confidence.toFixed(2)} -> ${decision}`);
 

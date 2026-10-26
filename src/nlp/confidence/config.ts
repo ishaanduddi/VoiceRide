@@ -16,9 +16,6 @@ export const CONFIDENCE_WEIGHTS = {
 /** Confidence at or above which a command is executed immediately. */
 export const EXECUTE_THRESHOLD = 0.62;
 
-/** Between CONFIRM and EXECUTE the app asks the rider to repeat. */
-export const CONFIRM_THRESHOLD = 0.45;
-
 /**
  * If the top two intents are closer than this AND form a known confusable
  * pair, the result is deliberately pushed down instead of guessed.

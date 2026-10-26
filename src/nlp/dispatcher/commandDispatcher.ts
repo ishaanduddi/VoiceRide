@@ -13,7 +13,7 @@ import type { AppContextManager } from '../context/contextManager';
 import type { AppContext } from '../context/types';
 import type { Intent, Interpretation } from '../types';
 
-import { intentPhrase, responses } from './responses';
+import { responses } from './responses';
 
 const log = createLogger('nlp:dispatcher');
 
@@ -22,11 +22,6 @@ export interface DispatchDeps {
   context: AppContextManager;
   /** Percentage points applied by a voice volume command. */
   volumeStepPercent: number;
-}
-
-export interface DispatchOptions {
-  /** Set when the rider answered "yes" to a confirmation question. */
-  confirmed?: boolean;
 }
 
 export interface DispatchOutcome {
@@ -46,7 +41,6 @@ const NOISE_FLOOR_CONFIDENCE = 0.35;
 export async function dispatchInterpretation(
   interpretation: Interpretation,
   deps: DispatchDeps,
-  options: DispatchOptions = {},
 ): Promise<DispatchOutcome> {
   const { controller, context, volumeStepPercent } = deps;
   const intent = interpretation.prediction.intent;
@@ -60,25 +54,10 @@ export async function dispatchInterpretation(
     });
   };
 
-  // Not confident enough to act on its own.
-  if (interpretation.decision !== 'execute' && !options.confirmed) {
-    /*
-     * A plausible command with middling confidence gets a yes/no question
-     * instead of "please repeat": one word finishes it, which is much easier
-     * while riding than re-saying the whole sentence.
-     */
-    const canConfirm =
-      interpretation.decision === 'confirm' &&
-      intent !== 'UNKNOWN' &&
-      !(intent === 'PLAY_SONG' && !interpretation.entities.songTitle);
-
-    if (canConfirm) {
-      const spoken = responses.confirmQuestion(intentPhrase(intent));
-      mark();
-      log.info(`confirm requested for ${intent} (${interpretation.confidence.toFixed(2)})`);
-      return { ok: false, intent, spoken };
-    }
-
+  // Anything the pipeline would not execute on its own is ignored: VoiceRiders
+  // never asks "did you mean…?" any more, because a question mid-ride is more
+  // disruptive than a missed command.
+  if (interpretation.decision !== 'execute') {
     const attemptedCommand =
       intent !== 'UNKNOWN' && interpretation.confidence >= NOISE_FLOOR_CONFIDENCE;
     const spoken = attemptedCommand ? responses.lowConfidence : '';

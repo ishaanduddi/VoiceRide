@@ -35,6 +35,7 @@ export async function updateSettings(patch: Partial<Preferences>): Promise<void>
     confidenceThreshold: next.confidenceThreshold,
     volumeStepPercent: next.volumeStepPercent,
     adaptiveAudioProfile: next.adaptiveAudioProfile,
+    microphoneInputId: next.microphoneInputId,
     lastPlaylistId: next.lastPlaylistId,
   });
 }

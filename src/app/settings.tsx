@@ -6,6 +6,11 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { SettingToggle } from '@/components/SettingToggle';
+import {
+  isInputSelectionAvailable,
+  listVoiceInputs,
+  type VoiceInputDevice,
+} from '@/audio/inputDevices';
 import { isCloudAsrConfigured, isSpotifyConfigured } from '@/config';
 import { applyAdaptiveAudioProfile, reloadAsrProvider } from '@/services/appServices';
 import { useStore } from '@/state/observable';
@@ -62,9 +67,12 @@ export default function SettingsScreen() {
           onSelect={(value) => void updateSettings({ confidenceThreshold: value })}
         />
         <Text style={styles.note}>
-          {'Below the threshold VoiceRiders asks you to repeat instead of guessing — this is what stops "increase volume" from becoming "decrease volume".'}
+          {'VoiceRiders never asks a yes/no question: a command either executes or is ignored. Below the ' +
+            'threshold it does nothing, which is what stops "increase volume" from becoming "decrease volume".'}
         </Text>
       </Card>
+
+      <MicrophoneCard />
 
       <Card title="Volume step" subtitle="Percentage points per “increase/decrease volume”.">
         <Segmented
@@ -80,7 +88,7 @@ export default function SettingsScreen() {
       >
         <SettingToggle
           label="Enabled"
-          description="Adjust Spotify volume based on estimated ambient noise."
+          description="Adjust the phone's media volume based on estimated ambient noise."
           value={settings.adaptiveAudioEnabled}
           onValueChange={(value) => void updateSettings({ adaptiveAudioEnabled: value })}
         />
@@ -191,6 +199,71 @@ function SpeechEngineCard() {
       <Text style={styles.note}>
         whisper.cpp tiny.en is about 75 MB and is downloaded once. Larger models (base.en, small.en) are more
         accurate in noise but slower — see docs/ON_DEVICE_ASR.md to swap the URL.
+      </Text>
+    </Card>
+  );
+}
+
+/**
+ * Microphone choice.
+ *
+ * Android does not always use the headset microphone when a headset is plugged
+ * in, so the rider can pin one. The native module opens its own `AudioRecord` and
+ * calls `setPreferredDevice` — the only Android API that actually controls this.
+ * `expo-audio` always takes the platform default.
+ */
+function MicrophoneCard() {
+  const settings = useStore(settingsStore);
+  const [inputs, setInputs] = useState<VoiceInputDevice[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listVoiceInputs().then((found) => {
+      if (!cancelled) setInputs(found);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const select = (id: number | null) => {
+    void updateSettings({ microphoneInputId: id });
+  };
+
+  return (
+    <Card
+      title="Microphone"
+      subtitle="Which microphone Ride Mode listens to. Applies when you next start Ride Mode."
+    >
+      {isInputSelectionAvailable ? null : (
+        <Banner
+          tone="warning"
+          message={
+            'This build cannot choose the microphone — the native input picker needs a development/preview ' +
+            'APK. Android will use the platform default input.'
+          }
+        />
+      )}
+
+      <Button
+        title="Automatic (prefer headset)"
+        variant={settings.microphoneInputId ? 'secondary' : 'primary'}
+        onPress={() => select(null)}
+      />
+
+      {inputs.map((input) => (
+        <Button
+          key={input.id}
+          title={`${input.name} · ${input.type}`}
+          variant={settings.microphoneInputId === input.id ? 'primary' : 'secondary'}
+          onPress={() => select(input.id)}
+        />
+      ))}
+
+      <Text style={styles.note}>
+        {inputs.length === 0
+          ? 'No inputs reported yet. Connect the earphones, then reopen Settings.'
+          : 'Bluetooth microphones only appear while the headset is connected. Wired and USB headset mics are pinned directly.'}
       </Text>
     </Card>
   );

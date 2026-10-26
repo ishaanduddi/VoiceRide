@@ -124,7 +124,14 @@ export default function RideModeScreen() {
               : '—'
           }
         />
-        <Row label="Speech detected" value={microphone.stats.speechActive ? 'yes' : 'no'} />
+        <Row
+          label="Speech detected"
+          value={microphone.stats.speechActive ? 'yes' : 'no'}
+        />
+        <Row
+          label="Microphone"
+          value={microphone.stats.inputName ?? 'platform default'}
+        />
         <Row
           label="Sample rate"
           value={microphone.stats.sampleRate ? `${microphone.stats.sampleRate} Hz` : '—'}

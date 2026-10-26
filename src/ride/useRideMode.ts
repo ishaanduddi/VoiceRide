@@ -314,7 +314,13 @@ export function useRideMode(): UseRideModeResult {
     [processUtterance],
   );
 
-  const microphone = useMicrophoneStream({ onFrame: handleFrame, onEvents: handleEvents });
+  const microphone = useMicrophoneStream({
+    // Read once per Ride Mode entry: changing the mic mid-ride would restart
+    // capture, so Settings explains that it applies on the next start.
+    preferredInputId: settingsStore.getState().microphoneInputId,
+    onFrame: handleFrame,
+    onEvents: handleEvents,
+  });
 
   const microphoneRef = useRef(microphone);
   useEffect(() => {
@@ -405,8 +411,6 @@ export function useRideMode(): UseRideModeResult {
     microphoneRef.current.stop();
     stopBackgroundListening();
     adaptiveAudio.setEnabled(false);
-    // Drop any pending yes/no question so it cannot leak into the next ride.
-    voiceController.reset();
     contextManager.setState({ rideMode: false, adaptiveAudio: false });
     stopSpeaking();
     setState((previous) => ({

@@ -52,17 +52,12 @@ export const voiceController = new VoiceController({
   asr: createAsrProvider(),
   getContext: () => contextManager.getState(),
   confidenceThreshold: settingsStore.getState().confidenceThreshold,
-  dispatch: (interpretation, options) =>
-    dispatchInterpretation(
-      interpretation,
-      {
-        controller: playbackController,
-        context: contextManager,
-        volumeStepPercent: settingsStore.getState().volumeStepPercent,
-      },
-      options,
-    ),
-});
+  dispatch: (interpretation) =>
+    dispatchInterpretation(interpretation, {
+      controller: playbackController,
+      context: contextManager,
+      volumeStepPercent: settingsStore.getState().volumeStepPercent,
+    }),});
 
 /** Rebuilds the ASR provider (e.g. after a model download or settings change). */
 export async function reloadAsrProvider(): Promise<void> {

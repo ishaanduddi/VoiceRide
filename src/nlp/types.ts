@@ -77,7 +77,8 @@ export interface AsrResult {
   nonSpeech?: boolean;
 }
 
-export type Decision = 'execute' | 'confirm' | 'reject';
+/** Execute or stay silent — there is no "ask the rider again" state. */
+export type Decision = 'execute' | 'reject';
 
 /** Everything the pipeline concluded about one utterance. */
 export interface Interpretation {

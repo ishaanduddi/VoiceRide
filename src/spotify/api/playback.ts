@@ -41,12 +41,18 @@ export async function pause(): Promise<void> {
   await spotifyRequest<void>('/me/player/pause', { method: 'PUT' });
 }
 
-export async function next(): Promise<void> {
-  await spotifyRequest<void>('/me/player/next', { method: 'POST' });
+export async function next(deviceId?: string): Promise<void> {
+  await spotifyRequest<void>('/me/player/next', {
+    method: 'POST',
+    query: deviceId ? { device_id: deviceId } : undefined,
+  });
 }
 
-export async function previous(): Promise<void> {
-  await spotifyRequest<void>('/me/player/previous', { method: 'POST' });
+export async function previous(deviceId?: string): Promise<void> {
+  await spotifyRequest<void>('/me/player/previous', {
+    method: 'POST',
+    query: deviceId ? { device_id: deviceId } : undefined,
+  });
 }
 
 export async function setVolume(volumePercent: number, deviceId?: string): Promise<void> {

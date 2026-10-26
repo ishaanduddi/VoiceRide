@@ -215,8 +215,16 @@ Songs are played **by name**. With a bare title the app asks Spotify for matches
 popular one (Spotify exposes `popularity`, not play counts); adding an artist — "believer by imagine
 dragons" — restricts the choice to that artist.
 
-When a command is plausible but not certain, the app asks **"Did you mean ...? Say yes or no."**
-instead of making you repeat the whole sentence, and it stays silent for noise rather than nagging.
+There are **no yes/no questions**. A command either executes or is ignored: if the app is not sure, it
+does nothing rather than interrupting the rider with a prompt. Noise stays silent.
+
+**Next/previous are verified too.** A skip that Spotify accepts but does not act on is retried on the
+phone, and a failure is reported instead of pretended.
+
+**Microphone choice.** Android does not reliably use the headset microphone just because earphones are
+plugged in, so Settings → Microphone lists every input and pins the chosen one (automatic prefers a
+connected headset). This uses the app's own `AudioRecord` with `setPreferredDevice`, which
+`expo-audio` does not expose; Ride Mode shows the microphone actually in use.
 
 With the screen off, Ride Mode keeps listening: the app runs an Android foreground service of type
 `microphone` (`modules/voice-system`) and keeps the audio session alive

@@ -183,7 +183,8 @@ Then:
   logged ("ambiguous between INCREASE_VOLUME and DECREASE_VOLUME").
 * `PLAY_SONG` without a number is capped at 0.45.
 
-Decision thresholds (configurable in Settings): `≥ 0.72` execute · `≥ 0.50` ask again · else reject.
+Decision threshold (configurable in Settings): `≥ threshold` execute · below it, ignore. There is no
+"ask again" step — a question mid-ride is more disruptive than a missed command.
 
 ### Worked example — the brief's case
 

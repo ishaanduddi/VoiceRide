@@ -3,16 +3,16 @@
  *
  *   utterance -> ASR -> interpretCommand() -> dispatch()
  *
- * Also owns the yes/no confirmation flow: when a command is plausible but not
- * certain, the app asks "Did you mean X? Say yes or no." and the next utterance
- * answers it instead of being interpreted as a new command.
+ * There is deliberately no "did you mean…?" step: a question mid-ride is more
+ * disruptive than a missed command, so an utterance either executes or is
+ * ignored. Noise stays silent, and a plausible-but-uncertain command gets a
+ * single short "Sorry, I didn't catch that."
  *
  * Deliberately React-free so it can be driven from the Ride Mode hook, a test,
  * or the ML evaluation harness.
  */
 
 import type { AppContext } from '@/nlp/context/types';
-import { responses } from '@/nlp/dispatcher/responses';
 import { interpretCommand } from '@/nlp/pipeline';
 import type { AsrResult, Interpretation } from '@/nlp/types';
 import { createLogger } from '@/utils/logger';
@@ -35,7 +35,6 @@ export interface VoiceControllerDeps {
   confidenceThreshold: number;
   dispatch: (
     interpretation: Interpretation,
-    options?: { confirmed?: boolean },
   ) => Promise<{ ok: boolean; spoken: string }>;
 }
 
@@ -47,57 +46,7 @@ export interface UtteranceResult {
   skipped: boolean;
 }
 
-const YES_WORDS = [
-  'yes',
-  'yeah',
-  'yep',
-  'yup',
-  'sure',
-  'correct',
-  'right',
-  'ok',
-  'okay',
-  'do it',
-  'go ahead',
-  'affirmative',
-];
-
-const NO_WORDS = [
-  'no',
-  'nope',
-  'nah',
-  'cancel',
-  'stop',
-  'negative',
-  'never mind',
-  'nevermind',
-  'dont',
-  'do not',
-];
-
-/** Interprets a one-word answer to a confirmation question. */
-export function parseYesNo(text: string): 'yes' | 'no' | 'unknown' {
-  const normalised = text
-    .toLowerCase()
-    .replace(/[^a-z ]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!normalised) return 'unknown';
-
-  if (YES_WORDS.some((word) => normalised === word || normalised.startsWith(`${word} `))) {
-    return 'yes';
-  }
-  if (NO_WORDS.some((word) => normalised === word || normalised.startsWith(`${word} `))) {
-    return 'no';
-  }
-  return 'unknown';
-}
-
 export class VoiceController {
-  /** A question we asked, waiting for a yes/no answer. */
-  private pending: Interpretation | null = null;
-
   constructor(private readonly deps: VoiceControllerDeps) {}
 
   /** Keeps the ASR provider swappable at runtime (e.g. after a model download). */
@@ -111,43 +60,10 @@ export class VoiceController {
     }
   }
 
-  /** Drops a pending question (e.g. when Ride Mode stops). */
-  reset(): void {
-    this.pending = null;
-  }
-
   async handleUtterance(utterance: AudioUtterance): Promise<UtteranceResult> {
     const startedAt = Date.now();
     const asr = await this.deps.asr.transcribe(utterance);
     const transcript = asr.text.trim();
-
-    // 1. Is this the answer to a yes/no question we asked?
-    if (this.pending) {
-      const pending = this.pending;
-      const answer = parseYesNo(transcript);
-
-      if (answer === 'yes') {
-        this.pending = null;
-        const outcome = await this.deps.dispatch(pending, { confirmed: true });
-        log.info(`confirmed ${pending.prediction.intent} verbally`);
-        return { asr, interpretation: pending, outcome, skipped: false };
-      }
-
-      if (answer === 'no') {
-        this.pending = null;
-        log.info('confirmation declined');
-        return {
-          asr,
-          interpretation: pending,
-          outcome: { ok: false, spoken: responses.cancelled },
-          skipped: false,
-        };
-      }
-
-      // Neither yes nor no: drop the question and treat this as a fresh command,
-      // so the rider can never get stuck answering.
-      this.pending = null;
-    }
 
     const interpretation = interpretCommand(transcript, {
       asrConfidence: asr.confidence,
@@ -157,7 +73,7 @@ export class VoiceController {
 
     const words = transcript.split(/\s+/).filter(Boolean);
 
-    // 2. Too short to be a command, or long enough to be a conversation.
+    // Too short to be a command, or long enough to be a conversation.
     if (transcript.length < 2 || words.length > MAX_COMMAND_WORDS) {
       log.info(`ignored "${transcript}" (${words.length} words) - not a command`);
       return { asr, interpretation, skipped: true };
@@ -170,15 +86,6 @@ export class VoiceController {
     );
 
     const outcome = await this.deps.dispatch(interpretation);
-
-    // 3. If we just asked a question, the next utterance answers it.
-    if (
-      interpretation.decision === 'confirm' &&
-      interpretation.prediction.intent !== 'UNKNOWN' &&
-      !(interpretation.prediction.intent === 'PLAY_SONG' && !interpretation.entities.songTitle)
-    ) {
-      this.pending = interpretation;
-    }
 
     log.debug(`handled in ${Date.now() - startedAt}ms`);
     return { asr, interpretation, outcome, skipped: false };

@@ -182,11 +182,84 @@ export class SpotifyPlaybackController {
   }
 
   async next(): Promise<void> {
-    await this.withDevice(() => playbackApi.next());
+    await this.skipTrack('next');
   }
 
   async previous(): Promise<void> {
-    await this.withDevice(() => playbackApi.previous());
+    await this.skipTrack('previous');
+  }
+
+  /**
+   * Skips a track and confirms the player actually moved.
+   *
+   * The same failure mode as starting a song by name applies: a restricted or
+   * asleep device accepts the request (HTTP 204) and nothing happens, so the
+   * rider says "next song" and the track never changes. If the track is still
+   * the same afterwards, playback is moved to a device Spotify will drive and
+   * the skip is retried once.
+   */
+  private async skipTrack(direction: 'next' | 'previous'): Promise<void> {
+    const send = (deviceId?: string) =>
+      direction === 'next' ? playbackApi.next(deviceId) : playbackApi.previous(deviceId);
+
+    const before = await this.getState().catch(() => null);
+    const beforeUri = before?.item?.uri ?? null;
+
+    try {
+      // withDevice wakes a device if Spotify reports none is active.
+      await this.withDevice(() => send());
+    } catch (error) {
+      log.warn(`${direction} request failed; will retry on the phone`, error);
+    }
+
+    if (await this.trackChanged(beforeUri)) return;
+
+    const target = this.pickPhone(await this.usableDevices());
+    if (!target?.id) {
+      throw new AppError(
+        'SPOTIFY_PLAYBACK_UNAVAILABLE',
+        'Spotify did not change the song and there is no active device. Open the Spotify app on this ' +
+          'phone, tap play once, then try again.',
+      );
+    }
+
+    log.info(`${direction} did not take effect; moving playback to "${target.name}" and retrying`);
+    await playbackApi
+      .transferPlayback(target.id, false)
+      .catch((error) => log.warn('could not move playback to the phone', error));
+    await sleep(TRANSFER_SETTLE_MS);
+
+    try {
+      await send(target.id);
+    } catch (error) {
+      log.warn(`${direction} retry failed`, error);
+    }
+
+    if (await this.trackChanged(beforeUri)) return;
+
+    throw new AppError(
+      'SPOTIFY_PLAYBACK_UNAVAILABLE',
+      `Spotify accepted "${direction === 'next' ? 'next song' : 'previous song'}" on "${target.name}" ` +
+        'but the track did not change. Check that Spotify is playing and Premium is active, then try again.',
+    );
+  }
+
+  /**
+   * True once the player reports a different track — or the same one restarted,
+   * which is what "previous" does when the track is more than a few seconds in.
+   */
+  private async trackChanged(beforeUri: string | null): Promise<boolean> {
+    for (let attempt = 0; attempt < PLAY_VERIFY_ATTEMPTS; attempt += 1) {
+      await sleep(PLAY_VERIFY_DELAY_MS);
+
+      const state = await this.getState().catch(() => null);
+      if (!state?.item) continue;
+
+      if (!beforeUri || state.item.uri !== beforeUri) return true;
+      if ((state.progress_ms ?? 0) < 2000) return true;
+    }
+
+    return false;
   }
 
   /** Starts a specific track of the selected playlist. */
