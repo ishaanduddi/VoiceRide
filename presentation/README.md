@@ -1,4 +1,34 @@
-# Presentation — VoiceRiders 4-minute review
+# Presentation — VoiceRiders
+
+Two decks live here.
+
+## A. NLP deck (current progress)
+
+| File | Contents |
+|------|----------|
+| `VoiceRiders-NLP-Presentation.pptx` | 11 slides: the NLP-heavy parts of the app as it behaves today — pipeline, on-device ASR, normalisation + intent classification, entity extraction, confidence fusion, context, noise gating, measured results |
+| `VoiceRiders-NLP-Speaker-Scripts.docx` | Four 60-second scripts (Name 1–4 placeholders), a timing table, delivery notes and likely questions |
+
+Running order:
+
+| Time | Speaker | Slides | Section |
+|------|---------|--------|---------|
+| 0:00 – 1:00 | Name 1 | 1–3 | Problem framing + pipeline |
+| 1:00 – 2:00 | Name 2 | 4–5 | ASR, normalisation, intent classification |
+| 2:00 – 3:00 | Name 3 | 6–7 | Entity extraction, confidence guards |
+| 3:00 – 4:00 | Name 4 | 8–10 | Context, song selection, noise, results |
+
+Replace "Name 1 … Name 4" on the title slide, the closing slide and in the
+scripts before presenting.
+
+Regenerate:
+
+```powershell
+python tools/make_nlp_deck.py    "C:\ISHU\Education\Amrita\5th_Sem\NLP\VoiceRiders-NLP-Presentation.pptx"
+python tools/make_nlp_scripts.py "C:\ISHU\Education\Amrita\5th_Sem\NLP\VoiceRiders-NLP-Speaker-Scripts.docx"
+```
+
+## B. 4-minute review deck
 
 | File | Contents |
 |------|----------|
@@ -47,13 +77,14 @@ The deck has three empty frames on slide 5. To fill them:
 `.png`, `.jpg` and `.jpeg` all work. If a file is missing, that frame keeps its
 placeholder text, so the deck is safe to present either way.
 
-## Regenerating either file
+## Regenerating
 
-Both files are generated, so content changes are made in the scripts (or by hand
-in PowerPoint/Word and the script is left alone):
+Both pairs of files are generated, so content changes are made in the scripts:
 
 ```powershell
-python tools/make_4min_deck.py     "C:\ISHU\Education\Amrita\5th_Sem\NLP\VoiceRiders-4min.pptx"
+python tools/make_nlp_deck.py        "C:\ISHU\Education\Amrita\5th_Sem\NLP\VoiceRiders-NLP-Presentation.pptx"
+python tools/make_nlp_scripts.py     "C:\ISHU\Education\Amrita\5th_Sem\NLP\VoiceRiders-NLP-Speaker-Scripts.docx"
+python tools/make_4min_deck.py       "C:\ISHU\Education\Amrita\5th_Sem\NLP\VoiceRiders-4min.pptx"
 python tools/make_speaker_scripts.py "C:\ISHU\Education\Amrita\5th_Sem\NLP\VoiceRiders-Speaker-Scripts.docx"
 ```
 
