@@ -15,6 +15,8 @@ export interface SpotifyAlbum {
   id: string;
   name: string;
   images: SpotifyImage[];
+  /** `spotify:album:…` — used to play a found song *in its album context*. */
+  uri?: string;
 }
 
 export interface SpotifyTrack {

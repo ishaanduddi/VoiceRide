@@ -60,3 +60,24 @@ export async function getDeviceVolumeSteps(): Promise<number | undefined> {
     return undefined;
   }
 }
+
+/**
+ * Moves the phone's media volume by `deltaPercent`, by at least one hardware
+ * step.
+ *
+ * Phones quantise volume to 15-25 steps, so adding 5% can round to the step it is
+ * already on — "increase volume" then repeats the same number and nothing is
+ * audible. Stepping in hardware units is the only way to guarantee a change.
+ */
+export async function stepDeviceVolumePercent(
+  deltaPercent: number,
+): Promise<number | undefined> {
+  if (!native) return undefined;
+
+  try {
+    const applied = await native.stepMediaVolume(deltaPercent);
+    return Number.isFinite(applied) ? Math.round(applied) : undefined;
+  } catch {
+    return undefined;
+  }
+}

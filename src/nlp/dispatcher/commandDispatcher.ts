@@ -75,13 +75,27 @@ export async function dispatchInterpretation(
       case 'INCREASE_VOLUME': {
         const change = await controller.changeVolumeBy(volumeStepPercent, 'voice');
         mark({ volumePercent: change.volumePercent });
-        return { ok: true, intent, spoken: responses.volume(change.volumePercent) };
+        return {
+          ok: true,
+          intent,
+          spoken:
+            change.appliedDelta > 0
+              ? responses.volume(change.volumePercent)
+              : responses.volumeAtMax,
+        };
       }
 
       case 'DECREASE_VOLUME': {
         const change = await controller.changeVolumeBy(-volumeStepPercent, 'voice');
         mark({ volumePercent: change.volumePercent });
-        return { ok: true, intent, spoken: responses.volume(change.volumePercent) };
+        return {
+          ok: true,
+          intent,
+          spoken:
+            change.appliedDelta < 0
+              ? responses.volume(change.volumePercent)
+              : responses.volumeAtMin,
+        };
       }
 
       case 'PAUSE': {

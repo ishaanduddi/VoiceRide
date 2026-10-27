@@ -154,6 +154,27 @@ class VoiceSystemModule : Module() {
       maxVolume(audio)
     }
 
+    /**
+     * Moves media volume by at least one hardware step.
+     *
+     * Phones quantise volume to 15-25 steps, so a "5%" request can round to the
+     * step it is already on: the reply then repeats the same percentage and the
+     * rider hears no change. Working in steps guarantees a real direction change
+     * whenever one is possible.
+     */
+    AsyncFunction("stepMediaVolume") { deltaPercent: Double ->
+      val audio = audioManager() ?: return@AsyncFunction 0.0
+      val max = maxVolume(audio)
+      val current = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+
+      val magnitude = max(1, (kotlin.math.abs(deltaPercent) / 100.0 * max).roundToInt())
+      val direction = if (deltaPercent >= 0) 1 else -1
+      val next = (current + direction * magnitude).coerceIn(0, max)
+
+      audio.setStreamVolume(AudioManager.STREAM_MUSIC, next, 0)
+      (next * 100.0) / max
+    }
+
     // ------------------------------------------------------------ microphone
 
     /**

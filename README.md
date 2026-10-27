@@ -209,11 +209,18 @@ command vocabulary, which matters a lot for short, noisy utterances.
 Volume is the **phone's own media volume**, the same stream the hardware volume keys change — not
 Spotify's internal level. Spotify exposes no equivalent, and many devices answer its volume endpoint
 with `Restriction violated`, so the app drives `AudioManager.STREAM_MUSIC` through a small local
-native module (`modules/voice-system`).
+native module (`modules/voice-system`). Steps are applied in **hardware units**, because phones only
+have 15–25 volume steps: adding "5%" to a percentage can round back to the step you are already on,
+which is why the reply used to repeat the same number.
 
-Songs are played **by name**. With a bare title the app asks Spotify for matches and plays the most
-popular one (Spotify exposes `popularity`, not play counts); adding an artist — "believer by imagine
-dragons" — restricts the choice to that artist.
+Songs are played **by name**, inside a real context. With a bare title the app asks Spotify for matches
+and plays the most popular one (Spotify exposes `popularity`, not play counts); adding an artist —
+"believer by imagine dragons" — restricts the choice to that artist.
+
+The track is started **within the selected playlist** when it is in there (otherwise within its album),
+not as a bare `uris: [track]`. That matters twice over: the playlist/queue stays intact — playing a
+single URI replaced the queue with one song — and **"next song" has somewhere to go**, which it did not
+in a one-track context.
 
 There are **no yes/no questions**. A command either executes or is ignored: if the app is not sure, it
 does nothing rather than interrupting the rider with a prompt. Noise stays silent.

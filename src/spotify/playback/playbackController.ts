@@ -10,14 +10,16 @@ import {
   getDeviceVolumePercent,
   isDeviceVolumeAvailable,
   setDeviceVolumePercent,
+  stepDeviceVolumePercent,
 } from '@/audio/deviceVolume';
 import { sleep } from '@/utils/async';
 import { AppError, NoActiveDeviceError, SpotifyApiError } from '@/utils/errors';
 import { createLogger } from '@/utils/logger';
 
 import * as playbackApi from '../api/playback';
+import type { PlayRequest } from '../api/playback';
 import { searchTracks } from '../api/search';
-import type { SpotifyDevice } from '../types';
+import type { SpotifyDevice, SpotifyTrack } from '../types';
 
 import {
   describeTrack,
@@ -37,9 +39,9 @@ const VOLUME_VERIFY_DELAY_MS = 250;
 /** Extra pause before retrying a volume change some devices drop. */
 const VOLUME_RETRY_DELAY_MS = 600;
 /** How long Spotify needs before a started track shows up as playing. */
-const PLAY_VERIFY_DELAY_MS = 450;
+const PLAY_VERIFY_DELAY_MS = 500;
 /** How many times the playback state is re-read before giving up. */
-const PLAY_VERIFY_ATTEMPTS = 3;
+const PLAY_VERIFY_ATTEMPTS = 4;
 /** Pause after moving playback to another device before starting a track on it. */
 const TRANSFER_SETTLE_MS = 450;
 
@@ -205,9 +207,13 @@ export class SpotifyPlaybackController {
     const before = await this.getState().catch(() => null);
     const beforeUri = before?.item?.uri ?? null;
 
+    // Naming a device is what makes the skip land on the phone even when
+    // Spotify has no active device at that moment.
+    const deviceId = await this.usableDeviceId();
+
     try {
       // withDevice wakes a device if Spotify reports none is active.
-      await this.withDevice(() => send());
+      await this.withDevice(() => send(deviceId));
     } catch (error) {
       log.warn(`${direction} request failed; will retry on the phone`, error);
     }
@@ -306,7 +312,8 @@ export class SpotifyPlaybackController {
 
     log.info(`search "${query}"${artist ? ` / ${artist}` : ''} -> "${describeSpotifyTrack(chosen)}"`);
 
-    await this.startTrack(chosen.uri, chosen.name);
+    const request = this.buildPlayRequest(chosen);
+    await this.startPlayback(request, chosen.uri, chosen.name);
 
     return {
       name: chosen.name,
@@ -316,55 +323,103 @@ export class SpotifyPlaybackController {
   }
 
   /**
-   * Starts one track and confirms that it is actually playing.
+   * How to start a found track.
    *
-   * Spotify answers 204 to `PUT /me/player/play` even when the active device is
-   * one it cannot drive, so an HTTP success is NOT proof of sound. The state is
-   * read back, and if nothing started the track is retried on a device Spotify
-   * will control (the phone). This is the difference between "the app says it is
-   * playing" and "the rider hears music".
+   * Playing a bare `uris: [uri]` replaces the playback context with a single
+   * track: Spotify's queue shows only that song ("my playlist got emptied") and
+   * `next` has nowhere to go ("the song does not change"). So a real context is
+   * always preferred:
+   *
+   *   1. the selected playlist, if the track is in it (keeps it whole)
+   *   2. the track's own album
+   *   3. a single URI, only when Spotify gave us no album
    */
-  private async startTrack(uri: string, name: string): Promise<void> {
-    try {
-      await this.withDevice(() => playbackApi.play({ uris: [uri] }));
-    } catch (error) {
-      // Not fatal yet: Spotify may refuse the *active* device while accepting
-      // the phone. The state check below decides whether music actually plays.
-      log.warn(`play request failed for "${name}"`, error);
+  private buildPlayRequest(track: SpotifyTrack): PlayRequest {
+    const target = this.deps.getTarget();
+    const entry = target?.entries.find(
+      (candidate) => candidate.trackId === track.id || candidate.uri === track.uri,
+    );
+
+    if (target && entry) {
+      return {
+        contextUri: target.playlistUri,
+        offsetPosition: entry.spotifyPosition,
+        positionMs: 0,
+      };
     }
 
-    if (await this.confirmPlaying(uri, name)) return;
+    if (track.album?.uri) {
+      return { contextUri: track.album.uri, offsetUri: track.uri, positionMs: 0 };
+    }
 
+    return { uris: [track.uri], positionMs: 0 };
+  }
+
+  /**
+   * Starts playback and confirms that it is actually running.
+   *
+   * Spotify answers 204 to `PUT /me/player/play` even when the target device is
+   * not active, so an HTTP success is NOT proof of sound. Naming the device in
+   * the request is what wakes it; a transfer is only used as a fallback, because
+   * a transfer that Spotify does not need can leave the device in a paused state.
+   */
+  private async startPlayback(request: PlayRequest, uri: string, name: string): Promise<void> {
     const devices = await this.usableDevices();
     const target = this.pickPhone(devices);
+    let lastError: unknown;
 
-    if (!target?.id) {
-      throw new AppError(
-        'SPOTIFY_PLAYBACK_UNAVAILABLE',
-        `Spotify found "${name}" but there is no active Spotify device. Open the Spotify app on this ` +
-          'phone and tap play once, then try again.',
-      );
-    }
+    const attempt = async (deviceId?: string): Promise<void> => {
+      try {
+        await playbackApi.play(request, deviceId);
+      } catch (error) {
+        lastError = error;
+        log.warn(`play request failed for "${name}"`, error);
+      }
+    };
 
-    log.info(`"${name}" did not start; moving playback to "${target.name}" and retrying`);
-    await playbackApi
-      .transferPlayback(target.id, false)
-      .catch((error) => log.warn('could not move playback to the phone', error));
-    await sleep(TRANSFER_SETTLE_MS);
-
-    await playbackApi
-      .play({ uris: [uri] }, target.id)
-      .catch((error) => log.warn('retry play failed', error));
-
+    await attempt(target?.id ?? undefined);
     if (await this.confirmPlaying(uri, name)) return;
 
-    const state = await this.getState().catch(() => null);
-    const where = state?.device?.name ?? target.name;
+    if (target?.id) {
+      /*
+       * The device is listed but did not accept playback. A transfer with
+       * play:true registers it as the active Spotify Connect target; the track is
+       * then requested again on it.
+       */
+      log.info(`"${name}" did not start; transferring to "${target.name}" and retrying`);
+      await playbackApi
+        .transferPlayback(target.id, true)
+        .catch((error) => log.warn('could not transfer playback to the phone', error));
+      await sleep(TRANSFER_SETTLE_MS);
+
+      await attempt(target.id);
+      if (await this.confirmPlaying(uri, name)) return;
+    }
+
+    // Last chance: let Spotify use whatever it considers active.
+    await attempt();
+    if (await this.confirmPlaying(uri, name)) return;
 
     throw new AppError(
       'SPOTIFY_PLAYBACK_UNAVAILABLE',
-      `Spotify found "${name}" but nothing is playing on "${where}". Open the Spotify app on this ` +
-        'phone, tap play once so it registers as a device, then try again.',
+      this.playbackFailureMessage(name, target?.name, lastError),
+    );
+  }
+
+  /** Turns the underlying failure into something a rider can act on. */
+  private playbackFailureMessage(name: string, deviceName?: string, error?: unknown): string {
+    const detail = error instanceof Error ? error.message : undefined;
+    const where = deviceName ? ` on "${deviceName}"` : '';
+
+    if (!deviceName) {
+      return `Spotify found "${name}" but no Spotify device is available. Open the Spotify app on this ` +
+        'phone, tap play once, then ask again.';
+    }
+
+    return (
+      `Spotify found "${name}" but did not start it${where}.` +
+      (detail ? ` Spotify said: ${detail}` : '') +
+      ' If this repeats, open the Spotify app, tap play once, then ask again.'
     );
   }
 
@@ -401,6 +456,26 @@ export class SpotifyPlaybackController {
 
   /** Relative volume change, e.g. +5 or -5 percentage points. */
   async changeVolumeBy(delta: number, source: VolumeSource = 'voice'): Promise<VolumeChange> {
+    /*
+     * Step in hardware units rather than percentages.
+     *
+     * `setVolumeAbsolute(previous + 5)` looks correct but phones only have 15-25
+     * volume steps, so the rounded target often lands on the current step: the
+     * reply repeats the same percentage and nothing is audible. The native
+     * stepper guarantees at least one step of movement.
+     */
+    if (isDeviceVolumeAvailable) {
+      const before = await getDeviceVolumePercent();
+      const applied = await stepDeviceVolumePercent(delta);
+
+      if (applied !== undefined) {
+        const previousPercent =
+          before ?? Math.max(0, Math.min(100, Math.round(applied - delta)));
+        this.deps.onVolumeChanged?.(applied, source);
+        return { previousPercent, volumePercent: applied, appliedDelta: applied - previousPercent };
+      }
+    }
+
     const previousPercent = await this.currentVolumePercent();
     return this.setVolumeAbsolute(previousPercent + delta, source, previousPercent);
   }

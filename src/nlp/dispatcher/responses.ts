@@ -9,6 +9,8 @@ export const responses = {
   previous: 'Previous song.',
 
   volume: (percent: number) => `Volume ${Math.round(percent)} percent.`,
+  volumeAtMax: 'Volume is already at maximum.',
+  volumeAtMin: 'Volume is already at minimum.',
   playingSong: (name: string, artists: string) =>
     artists ? `Playing ${name} by ${artists}.` : `Playing ${name}.`,
 

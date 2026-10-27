@@ -9,6 +9,8 @@ export interface PlayRequest {
   uris?: string[];
   /** 0-based position inside the context (playlist) to start from. */
   offsetPosition?: number;
+  /** Start from this track inside the context (works for albums and playlists). */
+  offsetUri?: string;
   positionMs?: number;
 }
 
@@ -27,6 +29,7 @@ export async function play(request: PlayRequest = {}, deviceId?: string): Promis
   if (request.contextUri) body.context_uri = request.contextUri;
   if (request.uris) body.uris = request.uris;
   if (request.offsetPosition !== undefined) body.offset = { position: request.offsetPosition };
+  if (request.offsetUri) body.offset = { uri: request.offsetUri };
   if (request.positionMs !== undefined) body.position_ms = request.positionMs;
 
   await spotifyRequest<void>('/me/player/play', {

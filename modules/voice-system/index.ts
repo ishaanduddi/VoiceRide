@@ -37,6 +37,11 @@ export interface VoiceSystemNativeModule {
   setMediaVolume(percent: number): Promise<number>;
   /** Number of hardware volume steps (Android only, for diagnostics). */
   getMediaVolumeSteps(): Promise<number>;
+  /**
+   * Moves media volume by a percentage, by at least one hardware step.
+   * Resolves with the level actually applied (0-100).
+   */
+  stepMediaVolume(deltaPercent: number): Promise<number>;
 
   /** Every capture-capable input, so the rider can choose one. */
   listInputs(): Promise<VoiceInputDevice[]>;
