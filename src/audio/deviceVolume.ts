@@ -81,3 +81,13 @@ export async function stepDeviceVolumePercent(
     return undefined;
   }
 }
+
+/** True when audio is routed to a Bluetooth device. */
+export async function isBluetoothAudioActive(): Promise<boolean> {
+  if (!native) return false;
+  try {
+    return await native.isBluetoothAudioActive();
+  } catch {
+    return false;
+  }
+}

@@ -8,6 +8,7 @@
 
 import {
   getDeviceVolumePercent,
+  isBluetoothAudioActive,
   isDeviceVolumeAvailable,
   setDeviceVolumePercent,
   stepDeviceVolumePercent,
@@ -75,6 +76,8 @@ export interface VolumeChange {
   previousPercent: number;
   volumePercent: number;
   appliedDelta: number;
+  /** Set when the level could not move: already at a limit, or the sound is on a headset. */
+  blockedReason?: 'maximum' | 'minimum' | 'external-device';
 }
 
 /** A track that was started by name, rather than from the numbered playlist. */
@@ -471,8 +474,26 @@ export class SpotifyPlaybackController {
       if (applied !== undefined) {
         const previousPercent =
           before ?? Math.max(0, Math.min(100, Math.round(applied - delta)));
+        const appliedDelta = applied - previousPercent;
+
+        let blockedReason: VolumeChange['blockedReason'];
+        if (appliedDelta === 0) {
+          // A Bluetooth headset keeps its own volume, so the phone level moving
+          // (or not) says nothing about what the rider hears.
+          blockedReason = (await isBluetoothAudioActive())
+            ? 'external-device'
+            : delta > 0
+              ? 'maximum'
+              : 'minimum';
+        }
+
         this.deps.onVolumeChanged?.(applied, source);
-        return { previousPercent, volumePercent: applied, appliedDelta: applied - previousPercent };
+        return {
+          previousPercent,
+          volumePercent: applied,
+          appliedDelta,
+          blockedReason,
+        };
       }
     }
 

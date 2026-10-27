@@ -5,7 +5,7 @@
  * should speak back. It is the ONLY place that turns an intent into an action.
  */
 
-import type { SpotifyPlaybackController } from '@/spotify/playback/playbackController';
+import type { SpotifyPlaybackController, VolumeChange } from '@/spotify/playback/playbackController';
 import { toUserMessage } from '@/utils/errors';
 import { createLogger } from '@/utils/logger';
 
@@ -37,6 +37,20 @@ export interface DispatchOutcome {
  * command, and nothing is spoken.
  */
 const NOISE_FLOOR_CONFIDENCE = 0.35;
+
+/** Speaks the outcome of a volume change, including why nothing moved. */
+function volumeReply(change: VolumeChange): string {
+  switch (change.blockedReason) {
+    case 'external-device':
+      return responses.volumeExternal;
+    case 'maximum':
+      return responses.volumeAtMax;
+    case 'minimum':
+      return responses.volumeAtMin;
+    default:
+      return responses.volume(change.volumePercent);
+  }
+}
 
 export async function dispatchInterpretation(
   interpretation: Interpretation,
@@ -75,27 +89,13 @@ export async function dispatchInterpretation(
       case 'INCREASE_VOLUME': {
         const change = await controller.changeVolumeBy(volumeStepPercent, 'voice');
         mark({ volumePercent: change.volumePercent });
-        return {
-          ok: true,
-          intent,
-          spoken:
-            change.appliedDelta > 0
-              ? responses.volume(change.volumePercent)
-              : responses.volumeAtMax,
-        };
+        return { ok: true, intent, spoken: volumeReply(change) };
       }
 
       case 'DECREASE_VOLUME': {
         const change = await controller.changeVolumeBy(-volumeStepPercent, 'voice');
         mark({ volumePercent: change.volumePercent });
-        return {
-          ok: true,
-          intent,
-          spoken:
-            change.appliedDelta < 0
-              ? responses.volume(change.volumePercent)
-              : responses.volumeAtMin,
-        };
+        return { ok: true, intent, spoken: volumeReply(change) };
       }
 
       case 'PAUSE': {

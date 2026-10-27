@@ -107,8 +107,10 @@ export const whisperConfig = {
   /** GGML model downloaded at runtime; never bundled in the repository. */
   modelUrl:
     clean(envWhisperModelUrl) ??
-    'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin',
-  modelFilename: clean(envWhisperModelFilename) ?? 'ggml-tiny.en.bin',
+    // base.en, not tiny.en: one step larger is markedly better on short, noisy,
+    // accented commands, which is the failure the rider actually notices.
+    'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin',
+  modelFilename: clean(envWhisperModelFilename) ?? 'ggml-base.en.bin',
   /** GPU (iOS Core ML / Metal, Android Vulkan + Hexagon NPU when available). */
   useGpu: clean(envWhisperUseGpu) !== 'false',
   maxThreads: readInt(envWhisperMaxThreads, 4),

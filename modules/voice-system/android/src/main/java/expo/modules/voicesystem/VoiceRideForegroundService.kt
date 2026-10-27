@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 
 /**
  * Foreground service that keeps VoiceRiders' microphone usable with the screen
@@ -17,13 +18,23 @@ import android.os.IBinder
  *
  * Android 9+ blocks microphone access for apps that are merely in the
  * background, and Android 12+ freezes background processes. A foreground
- * service of type `microphone` is the supported way to keep listening, which is
- * exactly what a rider needs: the phone stays in a pocket with the screen off.
+ * service of type `microphone` is the supported way to keep listening.
+ *
+ * A foreground service alone is not always enough on aggressive OEM builds
+ * (vivo/OriginOS, MIUI, EMUI): they can still throttle or freeze the process.
+ * Two extra measures are taken here:
+ *
+ *  - a **partial wake lock**, so the CPU does not suspend between audio buffers
+ *    (the mic indicator can stay lit while the JS thread never runs);
+ *  - the service reports [isRunning] so the UI can show whether background
+ *    listening is really active instead of assuming it.
  *
  * Deliberately built on the platform `Notification.Builder` (no androidx
  * dependency) so the module stays easy to compile.
  */
 class VoiceRideForegroundService : Service() {
+
+  private var wakeLock: PowerManager.WakeLock? = null
 
   override fun onBind(intent: Intent?): IBinder? = null
 
@@ -41,12 +52,18 @@ class VoiceRideForegroundService : Service() {
       startForeground(NOTIFICATION_ID, notification)
     }
 
+    isRunning = true
+    acquireWakeLock()
+
     // If the OS kills the process, there is no JS left to consume audio, so
     // restarting the service would only show a stale notification.
     return START_NOT_STICKY
   }
 
   override fun onDestroy() {
+    isRunning = false
+    releaseWakeLock()
+
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
       stopForeground(STOP_FOREGROUND_REMOVE)
     } else {
@@ -54,6 +71,31 @@ class VoiceRideForegroundService : Service() {
       stopForeground(true)
     }
     super.onDestroy()
+  }
+
+  private fun acquireWakeLock() {
+    if (wakeLock != null) return
+
+    val manager = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+    try {
+      wakeLock = manager
+        .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "VoiceRiders:ride")
+        .apply {
+          setReferenceCounted(false)
+          acquire()
+        }
+    } catch (error: Exception) {
+      android.util.Log.w("VoiceSystem", "could not acquire the ride wake lock", error)
+    }
+  }
+
+  private fun releaseWakeLock() {
+    try {
+      wakeLock?.release()
+    } catch (error: Exception) {
+      android.util.Log.w("VoiceSystem", "could not release the ride wake lock", error)
+    }
+    wakeLock = null
   }
 
   private fun createChannel() {
@@ -105,5 +147,10 @@ class VoiceRideForegroundService : Service() {
   companion object {
     private const val CHANNEL_ID = "voiceriders_ride_mode"
     private const val NOTIFICATION_ID = 4711
+
+    /** True while the service is in the foreground; read from JS for diagnostics. */
+    @Volatile
+    var isRunning: Boolean = false
+      private set
   }
 }

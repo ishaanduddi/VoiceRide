@@ -197,8 +197,8 @@ function SpeechEngineCard() {
       )}
 
       <Text style={styles.note}>
-        whisper.cpp tiny.en is about 75 MB and is downloaded once. Larger models (base.en, small.en) are more
-        accurate in noise but slower — see docs/ON_DEVICE_ASR.md to swap the URL.
+        whisper.cpp base.en is about 140 MB and is downloaded once. tiny.en is faster but noticeably
+        weaker on short, noisy commands; see docs/ON_DEVICE_ASR.md to swap the URL.
       </Text>
     </Card>
   );

@@ -9,7 +9,10 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import kotlinx.coroutines.CoroutineScope
@@ -155,24 +158,40 @@ class VoiceSystemModule : Module() {
     }
 
     /**
+     * Whether sound is currently going out over Bluetooth. Phone media volume
+     * does not adjust a headset's own volume, so the reply has to say so instead
+     * of pretending the level changed.
+     */
+    AsyncFunction("isBluetoothAudioActive") {
+      val audio = audioManager() ?: return@AsyncFunction false
+      @Suppress("DEPRECATION")
+      audio.isBluetoothA2dpOn || audio.isBluetoothScoOn
+    }
+
+    /**
      * Moves media volume by at least one hardware step.
      *
-     * Phones quantise volume to 15-25 steps, so a "5%" request can round to the
-     * step it is already on: the reply then repeats the same percentage and the
-     * rider hears no change. Working in steps guarantees a real direction change
-     * whenever one is possible.
+     * `adjustStreamVolume` is exactly what the hardware volume keys call. It also
+     * copes with Bluetooth absolute volume and devices where `setStreamVolume`
+     * is silently ignored, which is why plain percentage maths was not enough.
      */
     AsyncFunction("stepMediaVolume") { deltaPercent: Double ->
       val audio = audioManager() ?: return@AsyncFunction 0.0
       val max = maxVolume(audio)
-      val current = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
 
+      val direction = if (deltaPercent >= 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
       val magnitude = max(1, (kotlin.math.abs(deltaPercent) / 100.0 * max).roundToInt())
-      val direction = if (deltaPercent >= 0) 1 else -1
-      val next = (current + direction * magnitude).coerceIn(0, max)
 
-      audio.setStreamVolume(AudioManager.STREAM_MUSIC, next, 0)
-      (next * 100.0) / max
+      for (index in 0 until magnitude) {
+        try {
+          audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, 0)
+        } catch (error: SecurityException) {
+          android.util.Log.w("VoiceSystem", "volume adjust refused", error)
+          break
+        }
+      }
+
+      (audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100.0) / max
     }
 
     // ------------------------------------------------------------ microphone
@@ -287,8 +306,11 @@ class VoiceSystemModule : Module() {
               "channels" to 1
             )
 
-            // Delivery is marshalled to the JS queue by expo-modules-core.
-            sendEvent("audioBuffer", payload)
+            // Same delivery path expo-audio uses for its stream: marshal to the
+            // app queue, which keeps events flowing when the app is backgrounded.
+            appContext.mainQueue.launch {
+              sendEvent("audioBuffer", payload)
+            }
           } else if (read < 0) {
             break
           }
@@ -330,6 +352,51 @@ class VoiceSystemModule : Module() {
       val context = appContext.reactContext
       if (context != null) {
         context.stopService(Intent(context, VoiceRideForegroundService::class.java))
+      }
+    }
+
+    // --------------------------------------------------------- battery policy
+
+    /** Whether the microphone foreground service is actually in the foreground. */
+    AsyncFunction("isForegroundServiceRunning") {
+      VoiceRideForegroundService.isRunning
+    }
+
+    /**
+     * Whether Android is allowed to freeze the app. When this is false, OEM
+     * battery managers (vivo/OriginOS especially) can suspend voice processing
+     * even though the microphone indicator stays on.
+     */
+    AsyncFunction("isIgnoringBatteryOptimizations") {
+      val context = appContext.reactContext ?: return@AsyncFunction false
+      val manager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        ?: return@AsyncFunction false
+
+      manager.isIgnoringBatteryOptimizations(context.packageName)
+    }
+
+    /** Opens the system dialog that exempts the app from battery optimisation. */
+    Function("requestIgnoreBatteryOptimizations") {
+      val context = appContext.reactContext
+
+      if (context != null) {
+        try {
+          val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+          intent.data = Uri.parse("package:${context.packageName}")
+          intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+          context.startActivity(intent)
+        } catch (error: Exception) {
+          // Some OEM builds do not ship that dialog; fall back to the list.
+          android.util.Log.w("VoiceSystem", "battery optimisation dialog missing", error)
+          try {
+            context.startActivity(
+              Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+          } catch (fallbackError: Exception) {
+            android.util.Log.w("VoiceSystem", "battery settings unavailable", fallbackError)
+          }
+        }
       }
     }
 

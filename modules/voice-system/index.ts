@@ -42,6 +42,8 @@ export interface VoiceSystemNativeModule {
    * Resolves with the level actually applied (0-100).
    */
   stepMediaVolume(deltaPercent: number): Promise<number>;
+  /** Whether sound is going out over Bluetooth right now. */
+  isBluetoothAudioActive(): Promise<boolean>;
 
   /** Every capture-capable input, so the rider can choose one. */
   listInputs(): Promise<VoiceInputDevice[]>;
@@ -63,6 +65,12 @@ export interface VoiceSystemNativeModule {
   startForegroundService(): void;
   /** Stops the foreground service. */
   stopForegroundService(): void;
+  /** Whether the microphone foreground service is really in the foreground. */
+  isForegroundServiceRunning(): Promise<boolean>;
+  /** Whether Android is allowed to freeze the app (battery optimisation). */
+  isIgnoringBatteryOptimizations(): Promise<boolean>;
+  /** Opens the system dialog that exempts the app from battery optimisation. */
+  requestIgnoreBatteryOptimizations(): void;
 }
 
 const VoiceSystem = requireOptionalNativeModule<VoiceSystemNativeModule>('VoiceSystem');

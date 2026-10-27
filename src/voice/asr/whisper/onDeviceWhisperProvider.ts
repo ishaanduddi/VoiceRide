@@ -35,9 +35,10 @@ const log = createLogger('voice:asr:on-device');
  * command vocabulary makes "next song" far more likely than "text song".
  */
 export const COMMAND_BIAS_PROMPT = [
-  'Voice commands for music playback:',
-  'next song, previous song, skip, pause, resume, stop, play,',
-  'increase volume, decrease volume, play song number seven, track number.',
+  'Voice commands for Spotify music playback:',
+  'play believer, play thunder, play believer by imagine dragons,',
+  'next song, previous song, skip, pause, resume, stop,',
+  'increase volume, decrease volume, turn it up, turn it down.',
 ].join(' ');
 
 const UTTERANCE_FILENAME = 'voiceriders-utterance.wav';
@@ -104,10 +105,10 @@ export class OnDeviceWhisperProvider implements AsrProvider {
       language: 'en',
       translate: false,
       maxThreads: whisperConfig.maxThreads,
-      // Greedy decoding: deterministic and fastest for short commands.
+      // Greedy with a small beam: short commands are cheap, and the beam removes
+      // most of the "beat" / "next some" style errors tiny models make.
       temperature: 0,
-      beamSize: 1,
-      bestOf: 1,
+      beamSize: 2,
       prompt: COMMAND_BIAS_PROMPT,
     });
 

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Banner } from '@/components/Banner';
@@ -9,6 +9,7 @@ import { ManualCommandBox } from '@/components/ManualCommandBox';
 import { NoiseMeter } from '@/components/NoiseMeter';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { StatusPill, type PillTone } from '@/components/StatusPill';
+import { isDeviceVolumeAvailable } from '@/audio/deviceVolume';
 import { useRideMode, type RideStatus } from '@/ride/useRideMode';
 import { useAppContext } from '@/state/contextStore';
 import { libraryStore } from '@/state/libraryStore';
@@ -16,6 +17,11 @@ import { useStore } from '@/state/observable';
 import { sessionStore } from '@/state/sessionStore';
 import { settingsStore } from '@/state/settingsStore';
 import { describeAsrEngine, resolveAsrEngine } from '@/voice/asr';
+import {
+  getBackgroundStatus,
+  requestBatteryExemption,
+  type BackgroundStatus,
+} from '@/voice/background/backgroundListening';
 import { colors, fontSize, spacing } from '@/theme';
 
 const STATUS_LABEL: Record<RideStatus, string> = {
@@ -43,6 +49,7 @@ export default function RideModeScreen() {
   const settings = useStore(settingsStore);
   const session = useStore(sessionStore);
   const context = useAppContext();
+  const background = useBackgroundStatus();
 
   // Ride Mode is entered and left with this screen.
   useEffect(() => {
@@ -96,8 +103,18 @@ export default function RideModeScreen() {
         <Row label="Engine" value={describeAsrEngine()} />
         <Row label="Device" value={activeDevice?.name ?? 'none active'} />
         <Row
+          label="Volume control"
+          value={isDeviceVolumeAvailable ? 'phone hardware steps' : 'Spotify API (fallback)'}
+        />
+        <Row
           label="Screen off"
-          value={state.background ? 'keeps listening' : 'stops when the screen locks'}
+          value={
+            background.serviceRunning
+              ? 'keeps listening'
+              : state.background
+                ? 'service NOT running'
+                : 'stops when the screen locks'
+          }
         />
       </Card>
 
@@ -132,6 +149,33 @@ export default function RideModeScreen() {
           label="Microphone"
           value={microphone.stats.inputName ?? 'platform default'}
         />
+        <Row
+          label="Background service"
+          value={
+            !background.supported
+              ? 'not supported'
+              : background.serviceRunning
+                ? 'running'
+                : 'not running'
+          }
+        />
+        <Row
+          label="Battery exemption"
+          value={background.batteryOptimised ? 'not granted' : 'granted'}
+        />
+        {background.batteryOptimised ? (
+          <>
+            <Button
+              title="Allow background running"
+              variant="secondary"
+              onPress={requestBatteryExemption}
+            />
+            <Text style={styles.footnote}>
+              Android can freeze voice processing with the screen off until VoiceRiders is exempt
+              from battery optimisation.
+            </Text>
+          </>
+        ) : null}
         <Row
           label="Sample rate"
           value={microphone.stats.sampleRate ? `${microphone.stats.sampleRate} Hz` : '—'}
@@ -205,6 +249,42 @@ function Row({ label, value }: { label: string; value: string }) {
       </Text>
     </View>
   );
+}
+
+/**
+ * Live view of the screen-off machinery.
+ *
+ * A foreground service normally prevents Android from freezing the app, but
+ * aggressive OEM builds (vivo/OriginOS especially) can still suspend it — which
+ * looks like "the mic light is on but commands are only heard occasionally".
+ * Showing the real state, and offering the battery exemption, turns that into
+ * something the rider can see and fix.
+ */
+function useBackgroundStatus(): BackgroundStatus {
+  const [status, setStatus] = useState<BackgroundStatus>({
+    serviceRunning: false,
+    batteryOptimised: true,
+    supported: false,
+  });
+
+  useEffect(() => {
+    let alive = true;
+
+    const check = async () => {
+      const next = await getBackgroundStatus();
+      if (alive) setStatus(next);
+    };
+
+    void check();
+    const timer = setInterval(() => void check(), 3000);
+
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  return status;
 }
 
 const styles = StyleSheet.create({

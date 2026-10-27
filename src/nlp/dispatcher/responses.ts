@@ -11,6 +11,8 @@ export const responses = {
   volume: (percent: number) => `Volume ${Math.round(percent)} percent.`,
   volumeAtMax: 'Volume is already at maximum.',
   volumeAtMin: 'Volume is already at minimum.',
+  volumeExternal:
+    'The sound is going to your Bluetooth headset, which keeps its own volume — use the headset buttons.',
   playingSong: (name: string, artists: string) =>
     artists ? `Playing ${name} by ${artists}.` : `Playing ${name}.`,
 
