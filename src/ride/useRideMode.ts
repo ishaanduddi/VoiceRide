@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import type { NoiseZone } from '@/adaptiveAudio/config';
 import { hapticDouble, hapticTap, speak, stopSpeaking } from '@/effects/feedback';
@@ -55,6 +56,8 @@ const PREROLL_MS = 300;
 const MIN_UTTERANCE_MS = 200;
 /** Ignore audio captured while our own confirmation speech is still playing. */
 const REFRACTORY_MS = 800;
+/** How often the player state is re-read while Ride Mode is running. */
+const LIVE_STATE_INTERVAL_MS = 3000;
 /** Never repeat the same spoken prompt within this window. */
 const REPEAT_COOLDOWN_MS = 4000;
 /**
@@ -140,6 +143,17 @@ export function useRideMode(): UseRideModeResult {
             }
           : undefined,
       );
+
+      /*
+       * The Ride Mode card must reflect reality, not the last command: the rider
+       * can change tracks from the headset or the Spotify app at any time. Polling
+       * writes straight into the shared context, which is what the screen reads.
+       */
+      contextManager.setState({
+        isPlaying: playback?.is_playing ?? false,
+        currentTrackName: playback?.item?.name ?? undefined,
+        volumePercent: deviceVolume ?? playback?.device?.volume_percent ?? undefined,
+      });
     } catch (error) {
       log.debug('could not read the active device', error);
     }
@@ -339,6 +353,47 @@ export function useRideMode(): UseRideModeResult {
     });
     return () => adaptiveAudio.setStateListener(undefined);
   }, []);
+
+  /*
+   * Live playback state.
+   *
+   * The Ride Mode card used to update only after one of our own commands, so a
+   * track changed from the headset (or in the Spotify app) left the old song on
+   * screen, and the volume froze at whatever the last command set. Poll while
+   * Ride Mode is listening, and refresh immediately when the app comes back to
+   * the foreground.
+   */
+  useEffect(() => {
+    if (state.status !== 'listening' && state.status !== 'processing') return undefined;
+
+    let alive = true;
+    let busy = false;
+
+    const tick = async () => {
+      if (!alive || busy) return;
+      busy = true;
+      try {
+        await refreshDevice();
+      } finally {
+        busy = false;
+      }
+    };
+
+    void tick();
+    const timer = setInterval(() => void tick(), LIVE_STATE_INTERVAL_MS);
+
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [state.status, refreshDevice]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void refreshDevice();
+    });
+    return () => subscription.remove();
+  }, [refreshDevice]);
 
   const start = useCallback(async () => {
     setState((previous) => ({

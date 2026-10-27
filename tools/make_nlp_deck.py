@@ -216,7 +216,7 @@ for index, (title_text, body) in enumerate(cards):
 
 card(slide, 0.6, 4.3, 12.1, 1.05, SURFACE_ALT)
 text(slide,
-     'So the job is not “transcribe”. It is: turn a noisy 3-second clip into one of ten actions, '
+     'So the job is not “transcribe”. It is: turn a noisy 3-second clip into one of ten intents, '
      'and know when to do nothing at all.',
      0.95, 4.62, 11.5, 0.5, size=14, bold=True)
 
@@ -230,7 +230,7 @@ lines(slide, [
 
 # ------------------------------------------------------ 3. pipeline at a glance
 slide = blank_slide(prs)
-header(slide, 'Pipeline at a glance', 'From microphone to Spotify in seven steps — five of them NLP', 3)
+header(slide, 'Pipeline at a glance', 'From microphone to Spotify in seven steps', 3)
 
 steps = [
     ('VAD + gates', 'energy VAD,\nSNR / length limits'),
@@ -332,7 +332,7 @@ text(slide, 'Intent classification', 6.7, 1.72, 4.5, 0.35, size=13, bold=True)
 lines(slide, [
     'Features: unigrams + adjacent bigrams → 296 TF-IDF columns',
     'Model: multinomial logistic regression, 10 classes',
-    'Trained in Python, exported to model.json (dot products on-device)',
+    'Trained in Python on 123 utterances, evaluated on 54 held out',
     'Rule signal: whole-phrase containment + fuzzy similarity, per intent',
     'Fusion: 65% model + 35% rules — rules keep rare phrasings alive',
 ], 6.7, 2.12, 5.8, 2.2, size=10.8)
@@ -340,7 +340,7 @@ lines(slide, [
 stat_fill = SURFACE_ALT
 card(slide, 0.6, 4.55, 12.1, 1.0, stat_fill)
 text(slide, '177', 0.95, 4.68, 1.4, 0.5, size=20, bold=True, color=PRIMARY)
-text(slide, 'utterances', 0.95, 5.15, 1.6, 0.28, size=9.5, color=MUTED)
+text(slide, 'labelled utterances', 0.95, 5.15, 1.9, 0.28, size=9.5, color=MUTED)
 text(slide, '54', 2.75, 4.68, 1.2, 0.5, size=20, bold=True, color=ACCENT)
 text(slide, 'held out', 2.75, 5.15, 1.4, 0.28, size=9.5, color=MUTED)
 text(slide, '0.852', 4.35, 4.68, 1.8, 0.5, size=20, bold=True, color=PRIMARY)
@@ -349,8 +349,8 @@ text(slide, '10', 6.75, 4.68, 0.9, 0.5, size=20, bold=True, color=ACCENT)
 text(slide, 'intents', 6.75, 5.15, 1.4, 0.28, size=9.5, color=MUTED)
 text(slide, '0.887', 8.35, 4.68, 1.6, 0.5, size=20, bold=True, color=PRIMARY)
 text(slide, 'ML macro-F1', 8.35, 5.15, 1.9, 0.28, size=9.5, color=MUTED)
-text(slide, '~1 ms', 10.15, 4.68, 1.6, 0.5, size=20, bold=True, color=ACCENT)
-text(slide, 'per utterance', 10.15, 5.15, 2.0, 0.28, size=9.5, color=MUTED)
+text(slide, '< 5 ms', 10.15, 4.68, 1.6, 0.5, size=20, bold=True, color=ACCENT)
+text(slide, 'inference, offline', 10.15, 5.15, 2.2, 0.28, size=9.5, color=MUTED)
 
 rows = [
     ['Evaluation (54 held-out utterances)', 'Accuracy', 'Macro-F1', 'What it means'],
@@ -544,7 +544,7 @@ lines(slide, [
     'Hybrid accuracy 0.852 (54 held out)',
     'Model-only macro-F1 0.887',
     'Hybrid macro-F1 0.857',
-    '177 training utterances, 10 intents',
+    '177 labelled utterances (123 train / 54 held out)',
 ], 8.4, 2.12, 4.1, 1.6, size=10.5)
 
 text(slide, 'Honest limitations', 0.6, 4.25, 5.0, 0.32, size=12, bold=True, color=WARNING)
