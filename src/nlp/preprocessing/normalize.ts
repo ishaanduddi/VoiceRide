@@ -18,6 +18,37 @@ import { findNumberPhrase } from './numberWords';
 import { PHRASE_REWRITES, STOP_WORDS, TOKEN_SYNONYMS } from './synonyms';
 import { tokenize } from './tokenize';
 
+/**
+ * Re-joins a word the ASR spelled out letter by letter.
+ *
+ * "play f e i n" -> "play fein". Whisper does this for unfamiliar strings such
+ * as song titles with punctuation ("FE!N"), and a title split into single
+ * letters can never match anything. Runs of three or more single letters are
+ * joined; two are left alone so real words like "a" and "i" survive.
+ */
+export function joinSpelledLetters(tokens: string[]): string[] {
+  const output: string[] = [];
+  let run: string[] = [];
+
+  const flush = (): void => {
+    if (run.length >= 3) output.push(run.join(''));
+    else output.push(...run);
+    run = [];
+  };
+
+  for (const token of tokens) {
+    if (token.length === 1 && /[a-z]/.test(token)) {
+      run.push(token);
+    } else {
+      flush();
+      output.push(token);
+    }
+  }
+  flush();
+
+  return output;
+}
+
 export function normalizeCommand(input: string): NormalizedCommand {
   const original = (input ?? '').trim();
 
@@ -32,7 +63,7 @@ export function normalizeCommand(input: string): NormalizedCommand {
   }
   working = working.replace(/\s+/g, ' ').trim();
 
-  const rawTokens = tokenize(working);
+  const rawTokens = joinSpelledLetters(tokenize(working));
 
   // Collapse a spoken number into a single digit token.
   const phrase = findNumberPhrase(rawTokens);

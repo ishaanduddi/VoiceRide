@@ -13,7 +13,9 @@
 
 import { Platform } from 'react-native';
 
-import VoiceSystem from '../../modules/voice-system';
+import VoiceSystem, { type VolumeDiagnostics } from '../../modules/voice-system';
+
+export type { VolumeDiagnostics };
 
 /** Non-null only where the phone volume can be read and written from JS. */
 const native = Platform.OS === 'android' ? VoiceSystem : null;
@@ -89,5 +91,20 @@ export async function isBluetoothAudioActive(): Promise<boolean> {
     return await native.isBluetoothAudioActive();
   } catch {
     return false;
+  }
+}
+
+/**
+ * Raw volume state for the diagnostics card: the hardware step, whether apps are
+ * allowed to change it, and where the sound is going. This is what distinguishes
+ * "the command did nothing" from "the headset owns its own volume".
+ */
+export async function getVolumeDiagnostics(): Promise<VolumeDiagnostics | undefined> {
+  if (!native) return undefined;
+  try {
+    const value = await native.getVolumeDiagnostics();
+    return value && typeof value.max === 'number' && value.max > 0 ? value : undefined;
+  } catch {
+    return undefined;
   }
 }

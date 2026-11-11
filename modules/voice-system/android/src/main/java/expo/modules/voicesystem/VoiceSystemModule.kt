@@ -174,10 +174,12 @@ class VoiceSystemModule : Module() {
      * `adjustStreamVolume` is exactly what the hardware volume keys call. It also
      * copes with Bluetooth absolute volume and devices where `setStreamVolume`
      * is silently ignored, which is why plain percentage maths was not enough.
+     * If the OEM framework still ignores it, the stream index is set directly.
      */
     AsyncFunction("stepMediaVolume") { deltaPercent: Double ->
       val audio = audioManager() ?: return@AsyncFunction 0.0
       val max = maxVolume(audio)
+      val before = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
 
       val direction = if (deltaPercent >= 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
       val magnitude = max(1, (kotlin.math.abs(deltaPercent) / 100.0 * max).roundToInt())
@@ -191,7 +193,50 @@ class VoiceSystemModule : Module() {
         }
       }
 
-      (audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100.0) / max
+      var after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+
+      if (after == before) {
+        // Some OEM frameworks ignore the adjust call for third-party apps.
+        val target = (before + (if (deltaPercent >= 0) magnitude else -magnitude))
+          .coerceIn(0, max)
+
+        try {
+          audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+          after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+        } catch (error: SecurityException) {
+          android.util.Log.w("VoiceSystem", "volume set refused", error)
+        }
+      }
+
+      (after * 100.0) / max
+    }
+
+    /**
+     * Everything needed to explain why a volume command did nothing: the raw
+     * level, whether apps are allowed to change it, and whether the sound is
+     * going to a Bluetooth device that owns its own volume.
+     */
+    AsyncFunction("getVolumeDiagnostics") {
+      val audio = audioManager() ?: return@AsyncFunction emptyMap<String, Any?>()
+      val context = appContext.reactContext
+      val max = maxVolume(audio)
+      val level = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+
+      val permissionGranted = context != null && context.checkSelfPermission(
+        Manifest.permission.MODIFY_AUDIO_SETTINGS
+      ) == PackageManager.PERMISSION_GRANTED
+
+      @Suppress("DEPRECATION")
+      val bluetooth = audio.isBluetoothA2dpOn || audio.isBluetoothScoOn
+
+      mapOf(
+        "level" to level,
+        "max" to max,
+        "percent" to (level * 100.0 / max),
+        "isFixedVolume" to audio.isVolumeFixed,
+        "hasModifyPermission" to permissionGranted,
+        "isBluetooth" to bluetooth
+      )
     }
 
     // ------------------------------------------------------------ microphone

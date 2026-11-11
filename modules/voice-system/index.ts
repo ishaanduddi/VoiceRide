@@ -26,6 +26,22 @@ export interface AudioBufferEvent {
   channels: number;
 }
 
+/** Raw volume state, used by the Ride Mode diagnostics card. */
+export interface VolumeDiagnostics {
+  /** Current hardware step, e.g. 7. */
+  level: number;
+  /** Number of steps the phone exposes, e.g. 15. */
+  max: number;
+  /** `level / max` as 0-100. */
+  percent: number;
+  /** True when the device refuses app volume changes entirely. */
+  isFixedVolume: boolean;
+  /** MODIFY_AUDIO_SETTINGS is granted. */
+  hasModifyPermission: boolean;
+  /** Sound is routed to Bluetooth, which may keep its own volume. */
+  isBluetooth: boolean;
+}
+
 export interface VoiceSystemSubscription {
   remove(): void;
 }
@@ -44,6 +60,8 @@ export interface VoiceSystemNativeModule {
   stepMediaVolume(deltaPercent: number): Promise<number>;
   /** Whether sound is going out over Bluetooth right now. */
   isBluetoothAudioActive(): Promise<boolean>;
+  /** Raw volume state, for the on-device diagnostics card. */
+  getVolumeDiagnostics(): Promise<VolumeDiagnostics>;
 
   /** Every capture-capable input, so the rider can choose one. */
   listInputs(): Promise<VoiceInputDevice[]>;

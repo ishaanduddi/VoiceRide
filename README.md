@@ -217,6 +217,11 @@ Songs are played **by name**, inside a real context. With a bare title the app a
 and plays the most popular one (Spotify exposes `popularity`, not play counts); adding an artist —
 "believer by imagine dragons" — restricts the choice to that artist.
 
+Titles are matched **phonetically**, not literally: Spotify names are often not words (`FE!N`), and ASR
+may return "fein", "fe in" or "f e i n". Three queries are tried (field-filtered, title-only, then
+Spotify's own fuzzy search) and candidates are ranked with Soundex, Jaro-Winkler and edit distance, so
+`FE!N` is found from "fein" without spelling it out.
+
 The track is started **within the selected playlist** when it is in there (otherwise within its album),
 not as a bare `uris: [track]`. That matters twice over: the playlist/queue stays intact — playing a
 single URI replaced the queue with one song — and **"next song" has somewhere to go**, which it did not

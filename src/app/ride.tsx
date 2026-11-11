@@ -9,7 +9,12 @@ import { ManualCommandBox } from '@/components/ManualCommandBox';
 import { NoiseMeter } from '@/components/NoiseMeter';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { StatusPill, type PillTone } from '@/components/StatusPill';
-import { isDeviceVolumeAvailable } from '@/audio/deviceVolume';
+import {
+  getVolumeDiagnostics,
+  isDeviceVolumeAvailable,
+  stepDeviceVolumePercent,
+  type VolumeDiagnostics,
+} from '@/audio/deviceVolume';
 import { useRideMode, type RideStatus } from '@/ride/useRideMode';
 import { useAppContext } from '@/state/contextStore';
 import { libraryStore } from '@/state/libraryStore';
@@ -117,6 +122,8 @@ export default function RideModeScreen() {
           }
         />
       </Card>
+
+      <VolumeCard />
 
       <Card
         title="Microphone"
@@ -248,6 +255,94 @@ function Row({ label, value }: { label: string; value: string }) {
         {value}
       </Text>
     </View>
+  );
+}
+
+/**
+ * Volume diagnostics.
+ *
+ * "The volume does not change" has three very different causes, and this card
+ * separates them: the phone refuses app volume changes (fixed volume or a
+ * missing permission), the native call is not being used at all, or the sound is
+ * on a Bluetooth headset that keeps its own volume. The test button moves the
+ * stream exactly the way a voice command does, so the number proves which case
+ * applies without saying anything.
+ */
+function VolumeCard() {
+  const [diag, setDiag] = useState<VolumeDiagnostics | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+
+    const check = async () => {
+      const next = await getVolumeDiagnostics();
+      if (alive) setDiag(next);
+    };
+
+    void check();
+    const timer = setInterval(() => void check(), 2000);
+
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const test = async () => {
+    setBusy(true);
+    try {
+      await stepDeviceVolumePercent(5);
+      setDiag(await getVolumeDiagnostics());
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card
+      title="Volume"
+      subtitle="This phone's media volume — the same stream the hardware volume keys change."
+    >
+      <Row
+        label="Hardware step"
+        value={diag ? `${diag.level} / ${diag.max} (${Math.round(diag.percent)}%)` : '—'}
+      />
+      <Row
+        label="Volume API"
+        value={isDeviceVolumeAvailable ? 'native (AudioManager)' : 'Spotify fallback'}
+      />
+      <Row
+        label="Audio route"
+        value={
+          diag
+            ? diag.isBluetooth
+              ? 'Bluetooth — headset may keep its own volume'
+              : 'speaker / wired'
+            : '—'
+        }
+      />
+      <Row
+        label="Fixed volume"
+        value={diag ? (diag.isFixedVolume ? 'YES — apps cannot change it' : 'no') : '—'}
+      />
+      <Row
+        label="MODIFY_AUDIO_SETTINGS"
+        value={diag ? (diag.hasModifyPermission ? 'granted' : 'MISSING') : '—'}
+      />
+
+      <Button
+        title="Test: one step louder"
+        variant="secondary"
+        loading={busy}
+        onPress={() => void test()}
+      />
+
+      <Text style={styles.footnote}>
+        Press the test button while music is playing. If the hardware step moves but you hear no
+        difference, Android is routing audio to Bluetooth and the headset owns its own volume.
+      </Text>
+    </Card>
   );
 }
 
