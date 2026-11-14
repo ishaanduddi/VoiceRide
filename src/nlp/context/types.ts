@@ -2,6 +2,21 @@
 
 import type { Intent } from '../types';
 
+/** Result of the most recent volume command, for the Ride Mode diagnostics card. */
+export interface VolumeCommandRecord {
+  at: number;
+  /** Percentage points requested (+5, -5). */
+  delta: number;
+  /** Hardware steps before/after, when the phone could report them. */
+  levelBefore?: number;
+  levelAfter?: number;
+  max?: number;
+  /** Volume the app reports after the change, 0-100. */
+  percent: number;
+  bluetooth: boolean;
+  outcome: 'applied' | 'maximum' | 'minimum' | 'headset';
+}
+
 export interface AppContext {
   spotifyConnected: boolean;
   /** Track index currently playing, 1-based, inside the selected playlist. */
@@ -19,6 +34,7 @@ export interface AppContext {
   lastTranscript?: string;
   lastIntent?: Intent;
   lastCommandAt?: number;
+  lastVolumeCommand?: VolumeCommandRecord;
 }
 
 export const INITIAL_CONTEXT: AppContext = {

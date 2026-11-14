@@ -10,7 +10,7 @@ import { toUserMessage } from '@/utils/errors';
 import { createLogger } from '@/utils/logger';
 
 import type { AppContextManager } from '../context/contextManager';
-import type { AppContext } from '../context/types';
+import type { AppContext, VolumeCommandRecord } from '../context/types';
 import type { Intent, Interpretation } from '../types';
 
 import { responses } from './responses';
@@ -57,6 +57,20 @@ function volumeReply(change: VolumeChange): string {
   }
 }
 
+/** The diagnostic record shown in Ride Mode's Volume card. */
+function volumeRecord(change: VolumeChange, delta: number): VolumeCommandRecord {
+  return {
+    at: Date.now(),
+    delta,
+    levelBefore: change.device?.levelBefore,
+    levelAfter: change.device?.levelAfter,
+    max: change.device?.max,
+    percent: change.volumePercent,
+    bluetooth: change.device?.bluetooth ?? false,
+    outcome: change.blockedReason ?? (change.unverified ? 'headset' : 'applied'),
+  };
+}
+
 export async function dispatchInterpretation(
   interpretation: Interpretation,
   deps: DispatchDeps,
@@ -93,13 +107,19 @@ export async function dispatchInterpretation(
     switch (intent) {
       case 'INCREASE_VOLUME': {
         const change = await controller.changeVolumeBy(volumeStepPercent, 'voice');
-        mark({ volumePercent: change.volumePercent });
+        mark({
+          volumePercent: change.volumePercent,
+          lastVolumeCommand: volumeRecord(change, volumeStepPercent),
+        });
         return { ok: true, intent, spoken: volumeReply(change) };
       }
 
       case 'DECREASE_VOLUME': {
         const change = await controller.changeVolumeBy(-volumeStepPercent, 'voice');
-        mark({ volumePercent: change.volumePercent });
+        mark({
+          volumePercent: change.volumePercent,
+          lastVolumeCommand: volumeRecord(change, -volumeStepPercent),
+        });
         return { ok: true, intent, spoken: volumeReply(change) };
       }
 

@@ -202,7 +202,13 @@ class VoiceSystemModule : Module() {
 
       for (index in 0 until magnitude) {
         try {
-          audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, 0)
+          /*
+           * FLAG_SHOW_UI makes this behave like an actual hardware key press:
+           * some OEM audio stacks (vivo/OriginOS included) route a silent
+           * programmatic change differently from a user-initiated one, and a
+           * Bluetooth headset only follows the user-initiated path reliably.
+           */
+          audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
         } catch (error: SecurityException) {
           android.util.Log.w("VoiceSystem", "volume adjust refused", error)
           break

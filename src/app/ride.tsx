@@ -271,6 +271,8 @@ function Row({ label, value }: { label: string; value: string }) {
 function VolumeCard() {
   const [diag, setDiag] = useState<VolumeDiagnostics | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const appContext = useAppContext();
+  const lastVolume = appContext.lastVolumeCommand;
 
   useEffect(() => {
     let alive = true;
@@ -330,6 +332,17 @@ function VolumeCard() {
         label="MODIFY_AUDIO_SETTINGS"
         value={diag ? (diag.hasModifyPermission ? 'granted' : 'MISSING') : '—'}
       />
+      <Row
+        label="Last voice command"
+        value={
+          lastVolume
+            ? `${lastVolume.delta > 0 ? '+' : ''}${lastVolume.delta}% · step ` +
+              `${lastVolume.levelBefore ?? '?'} → ${lastVolume.levelAfter ?? '?'}` +
+              (lastVolume.max ? ` of ${lastVolume.max}` : '') +
+              ` · ${lastVolume.outcome === 'headset' ? 'headset (level unreadable)' : lastVolume.outcome}`
+            : '—'
+        }
+      />
 
       <Button
         title="Test: one step louder"
@@ -339,8 +352,10 @@ function VolumeCard() {
       />
 
       <Text style={styles.footnote}>
-        Press the test button while music is playing. If the hardware step moves but you hear no
-        difference, Android is routing audio to Bluetooth and the headset owns its own volume.
+        Press the test button while music is playing. “Last voice command” shows what a spoken
+        command actually did: if the step number does not change but the route is Bluetooth, the
+        headset is keeping its own level. You can also type “increase volume” in the command box to
+        test the same path without the microphone.
       </Text>
     </Card>
   );
