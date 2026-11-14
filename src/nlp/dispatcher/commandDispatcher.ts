@@ -41,13 +41,18 @@ const NOISE_FLOOR_CONFIDENCE = 0.35;
 /** Speaks the outcome of a volume change, including why nothing moved. */
 function volumeReply(change: VolumeChange): string {
   switch (change.blockedReason) {
-    case 'external-device':
-      return responses.volumeExternal;
     case 'maximum':
       return responses.volumeAtMax;
     case 'minimum':
       return responses.volumeAtMin;
     default:
+      /*
+       * With a Bluetooth headset the level cannot be read back, so reporting a
+       * number would be a guess. The direction is what the rider asked for.
+       */
+      if (change.unverified) {
+        return change.appliedDelta >= 0 ? responses.volumeUp : responses.volumeDown;
+      }
       return responses.volume(change.volumePercent);
   }
 }

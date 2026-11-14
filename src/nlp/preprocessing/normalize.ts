@@ -53,8 +53,12 @@ export function normalizeCommand(input: string): NormalizedCommand {
   const original = (input ?? '').trim();
 
   let working = original.toLowerCase();
-  // Apostrophes join letters ("don't" -> "dont"), everything else becomes space.
+  // Apostrophes join letters ("don't" -> "dont").
   working = working.replace(/[\u2019']/g, '');
+  // Punctuation *inside* a word belongs to the title: "FE!N" must survive as
+  // "fen" instead of being split into "fe n". Only punctuation that separates
+  // words becomes a space.
+  working = working.replace(/([a-z0-9])[^a-z0-9\s]+(?=[a-z0-9])/g, '$1');
   working = working.replace(/[^a-z0-9\s]/g, ' ');
   working = working.replace(/\s+/g, ' ').trim();
 

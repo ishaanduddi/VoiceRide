@@ -213,14 +213,20 @@ native module (`modules/voice-system`). Steps are applied in **hardware units**,
 have 15–25 volume steps: adding "5%" to a percentage can round back to the step you are already on,
 which is why the reply used to repeat the same number.
 
+With a **Bluetooth headset** the phone cannot read the headset's absolute level back, so the reply is
+just *"Volume up."* / *"Volume down."* instead of a number — the key press was still delivered. A phone
+already at its own maximum says so, rather than blaming the headset. Ride Mode → **Volume** shows the
+hardware step, audio route, fixed-volume and permission state, and a test button for the same code path.
+
 Songs are played **by name**, inside a real context. With a bare title the app asks Spotify for matches
 and plays the most popular one (Spotify exposes `popularity`, not play counts); adding an artist —
 "believer by imagine dragons" — restricts the choice to that artist.
 
 Titles are matched **phonetically**, not literally: Spotify names are often not words (`FE!N`), and ASR
-may return "fein", "fe in" or "f e i n". Three queries are tried (field-filtered, title-only, then
-Spotify's own fuzzy search) and candidates are ranked with Soundex, Jaro-Winkler and edit distance, so
-`FE!N` is found from "fein" without spelling it out.
+may return "fein", "fe in", "fine" or "f e i n". Three queries plus **sound-alike spellings** (e.g. "fine"
+→ "fein") are sent in parallel, and candidates are ranked with Soundex, Jaro-Winkler and edit distance.
+Titles that sound the same are treated as one group, where **popularity wins** — so "play fein" starts
+Travis Scott's `FE!N` rather than an obscure track that happens to be spelled "Fine".
 
 The track is started **within the selected playlist** when it is in there (otherwise within its album),
 not as a bare `uris: [track]`. That matters twice over: the playlist/queue stays intact — playing a

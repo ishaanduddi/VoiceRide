@@ -2,6 +2,7 @@ import { createLogger } from '@/utils/logger';
 
 import type { SpotifyPaging, SpotifyTrack } from '../types';
 import { spotifyRequest } from './client';
+import { soundAlikeSpellings } from './spellingVariants';
 
 const log = createLogger('spotify:search');
 
@@ -37,9 +38,14 @@ async function searchOnce(query: string, limit: number): Promise<SpotifyTrack[]>
  *   2. `track:"<title>"`                   — title only
  *   3. `<title> <artist>` / `<title>`      — Spotify's own fuzzy search, which
  *                                            copes with punctuation and spelling
+ *   4. sound-alike spellings of the title — the ASR writes what it hears, so
+ *                                            "FE!N" arrives as "fine" and only a
+ *                                            "fein" search finds it
  *
- * Ranking then happens locally (see playback/trackSelection.ts), so an early
- * imprecise result set does not decide the outcome.
+ * The requests run in parallel (a rider should not wait for four round trips)
+ * and the results are merged in query order. Ranking then happens locally (see
+ * playback/trackSelection.ts), so an imprecise result set does not decide the
+ * outcome.
  */
 export async function searchTracks(
   input: TrackSearchInput,
@@ -51,33 +57,48 @@ export async function searchTracks(
   const artist = input.artist?.trim();
   const perQuery = Math.min(Math.max(limit, 1), 20);
 
+  const query = (candidate: string, withArtist: boolean): string =>
+    withArtist && artist ? `${candidate} ${artist}` : candidate;
+
+  const fieldQuery = (candidate: string, withArtist: boolean): string =>
+    withArtist && artist
+      ? `track:"${candidate}" artist:"${artist}"`
+      : `track:"${candidate}"`;
+
   const queries = [
-    artist ? `track:"${title}" artist:"${artist}"` : `track:"${title}"`,
-    `track:"${title}"`,
-    artist ? `${title} ${artist}` : title,
+    fieldQuery(title, true),
+    fieldQuery(title, false),
+    query(title, true),
+    ...soundAlikeSpellings(title).flatMap((variant) => [
+      fieldQuery(variant, true),
+      query(variant, true),
+    ]),
   ];
+
+  const unique = [...new Set(queries)];
+
+  const results = await Promise.all(
+    unique.map(async (candidate) => {
+      try {
+        const items = await searchOnce(candidate, perQuery);
+        log.debug(`"${candidate}" -> ${items.length} tracks`);
+        return items;
+      } catch (error) {
+        log.warn(`search failed for "${candidate}"`, error);
+        return [] as SpotifyTrack[];
+      }
+    }),
+  );
 
   const seen = new Set<string>();
   const merged: SpotifyTrack[] = [];
 
-  for (const query of [...new Set(queries)]) {
-    let items: SpotifyTrack[] = [];
-    try {
-      items = await searchOnce(query, perQuery);
-    } catch (error) {
-      log.warn(`search failed for "${query}"`, error);
-    }
-
-    log.debug(`"${query}" -> ${items.length} tracks`);
-
+  for (const items of results) {
     for (const track of items) {
       if (seen.has(track.uri)) continue;
       seen.add(track.uri);
       merged.push(track);
     }
-
-    // Enough candidates to rank confidently; do not spend more rate limit.
-    if (merged.length >= perQuery) break;
   }
 
   return merged;

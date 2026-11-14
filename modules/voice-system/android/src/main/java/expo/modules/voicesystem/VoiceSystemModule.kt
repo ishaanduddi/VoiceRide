@@ -42,9 +42,10 @@ import kotlin.math.roundToInt
  *     `setPreferredDevice`, which is the only Android API that actually pins the
  *     input.
  *
- * Volume values cross the bridge as percentages (0-100) so the JS side never has
- * to know the device's step count. Captured audio is emitted as 100 ms chunks of
- * mono little-endian float32 (`audioBuffer` event).
+ * Volume values cross the bridge as percentages (0-100, or -1 when the audio
+ * service cannot be reached) so the JS side never has to know the device's step
+ * count. Captured audio is emitted as 100 ms chunks of mono little-endian
+ * float32 (`audioBuffer` event).
  */
 class VoiceSystemModule : Module() {
 
@@ -53,8 +54,19 @@ class VoiceSystemModule : Module() {
   private val captureScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
   private var activeInputName: String? = null
 
+  /**
+   * Application context held for the life of the module.
+   *
+   * `appContext.reactContext` can be unavailable while the app sits in the
+   * background with the screen off — exactly when a rider says "increase
+   * volume". Falling back to a stored application context keeps `AudioManager`
+   * reachable, instead of the volume APIs silently reporting 0%.
+   */
+  private var applicationContext: Context? = null
+
   private fun audioManager(): AudioManager? =
-    appContext.reactContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    (applicationContext ?: appContext.reactContext)
+      ?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
   private fun maxVolume(audio: AudioManager): Int =
     audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
@@ -124,20 +136,24 @@ class VoiceSystemModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("VoiceSystem")
 
+    OnCreate {
+      applicationContext = appContext.reactContext?.applicationContext
+    }
+
     Events("audioBuffer")
 
     // ---------------------------------------------------------------- volume
 
-    /** Current media volume as 0-100. */
+    /** Current media volume as 0-100, or -1 when the audio service is unreachable. */
     AsyncFunction("getMediaVolume") {
-      val audio = audioManager() ?: return@AsyncFunction 0.0
+      val audio = audioManager() ?: return@AsyncFunction -1.0
       val max = maxVolume(audio)
       (audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100.0) / max
     }
 
-    /** Sets media volume from 0-100 and returns the level actually applied. */
+    /** Sets media volume from 0-100 and returns the level actually applied (-1 on failure). */
     AsyncFunction("setMediaVolume") { percent: Double ->
-      val audio = audioManager() ?: return@AsyncFunction 0.0
+      val audio = audioManager() ?: return@AsyncFunction -1.0
       val max = maxVolume(audio)
 
       val level = ((percent.coerceIn(0.0, 100.0) / 100.0) * max)
@@ -177,7 +193,7 @@ class VoiceSystemModule : Module() {
      * If the OEM framework still ignores it, the stream index is set directly.
      */
     AsyncFunction("stepMediaVolume") { deltaPercent: Double ->
-      val audio = audioManager() ?: return@AsyncFunction 0.0
+      val audio = audioManager() ?: return@AsyncFunction -1.0
       val max = maxVolume(audio)
       val before = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
 

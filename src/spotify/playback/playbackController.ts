@@ -8,7 +8,7 @@
 
 import {
   getDeviceVolumePercent,
-  isBluetoothAudioActive,
+  getVolumeDiagnostics,
   isDeviceVolumeAvailable,
   setDeviceVolumePercent,
   stepDeviceVolumePercent,
@@ -76,8 +76,17 @@ export interface VolumeChange {
   previousPercent: number;
   volumePercent: number;
   appliedDelta: number;
-  /** Set when the level could not move: already at a limit, or the sound is on a headset. */
-  blockedReason?: 'maximum' | 'minimum' | 'external-device';
+  /**
+   * Set when the level could not move: already at a limit, or a headset that
+   * keeps its own volume.
+   */
+  blockedReason?: 'maximum' | 'minimum';
+  /**
+   * The request was sent but the phone's media stream stayed on the same index,
+   * which is normal with a Bluetooth headset using AVRCP absolute volume. The
+   * rider hears the change; there is simply no level to report.
+   */
+  unverified?: boolean;
 }
 
 /** A track that was started by name, rather than from the numbered playlist. */
@@ -474,17 +483,38 @@ export class SpotifyPlaybackController {
       if (applied !== undefined) {
         const previousPercent =
           before ?? Math.max(0, Math.min(100, Math.round(applied - delta)));
-        const appliedDelta = applied - previousPercent;
-
+        let appliedDelta = applied - previousPercent;
         let blockedReason: VolumeChange['blockedReason'];
+        let unverified = false;
+
         if (appliedDelta === 0) {
-          // A Bluetooth headset keeps its own volume, so the phone level moving
-          // (or not) says nothing about what the rider hears.
-          blockedReason = (await isBluetoothAudioActive())
-            ? 'external-device'
-            : delta > 0
-              ? 'maximum'
-              : 'minimum';
+          const diagnostics = await getVolumeDiagnostics();
+          const level = diagnostics?.level;
+          const max = diagnostics?.max;
+
+          /*
+           * Order matters. A rider who has already turned the phone up to the
+           * top used to be told "your Bluetooth headset keeps its own volume",
+           * which hid the real reason. The limit is checked first; the headset
+           * explanation is now only the fallback for a level that cannot be
+           * reported at all.
+           */
+          if (typeof level === 'number' && typeof max === 'number' && level >= max && delta > 0) {
+            blockedReason = 'maximum';
+          } else if (typeof level === 'number' && level <= 0 && delta < 0) {
+            blockedReason = 'minimum';
+          } else if (diagnostics?.isBluetooth) {
+            /*
+             * The AVRCP volume key press was delivered, but the phone's stream
+             * index does not track a headset's absolute volume. The command is
+             * not blocked, so it must not be reported as such — just without a
+             * number, since the headset owns the actual level.
+             */
+            unverified = true;
+            appliedDelta = delta;
+          } else {
+            blockedReason = delta > 0 ? 'maximum' : 'minimum';
+          }
         }
 
         this.deps.onVolumeChanged?.(applied, source);
@@ -493,6 +523,7 @@ export class SpotifyPlaybackController {
           volumePercent: applied,
           appliedDelta,
           blockedReason,
+          unverified,
         };
       }
     }

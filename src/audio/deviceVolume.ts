@@ -28,7 +28,8 @@ export async function getDeviceVolumePercent(): Promise<number | undefined> {
   if (!native) return undefined;
   try {
     const value = await native.getMediaVolume();
-    return Number.isFinite(value) ? Math.round(value) : undefined;
+    // The native side answers -1 when the audio service cannot be reached.
+    return Number.isFinite(value) && value >= 0 ? Math.round(value) : undefined;
   } catch {
     return undefined;
   }
@@ -46,7 +47,7 @@ export async function setDeviceVolumePercent(percent: number): Promise<number | 
   const target = Math.max(0, Math.min(100, Math.round(percent)));
   try {
     const applied = await native.setMediaVolume(target);
-    return Number.isFinite(applied) ? Math.round(applied) : target;
+    return Number.isFinite(applied) && applied >= 0 ? Math.round(applied) : undefined;
   } catch {
     return undefined;
   }
@@ -78,7 +79,7 @@ export async function stepDeviceVolumePercent(
 
   try {
     const applied = await native.stepMediaVolume(deltaPercent);
-    return Number.isFinite(applied) ? Math.round(applied) : undefined;
+    return Number.isFinite(applied) && applied >= 0 ? Math.round(applied) : undefined;
   } catch {
     return undefined;
   }

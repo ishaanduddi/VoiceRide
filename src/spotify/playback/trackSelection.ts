@@ -5,7 +5,10 @@
  * an artist ("believer by imagine dragons"), only that artist's track.
  *
  * Spotify does NOT expose play counts or "views", so `popularity` (0-100, derived
- * from recent plays) is the closest available proxy for "most played".
+ * from recent plays) is the closest available proxy for "most played". Title
+ * similarity only decides *which songs are candidates*; among real contenders
+ * popularity wins, because a literal spelling match is not evidence of intent
+ * ("fine" vs "FE!N").
  *
  * Matching is deliberately fuzzy and phonetic, because Spotify titles are not
  * words: "FE!N" is spoken as "fein", "Sicko Mode" as "sicko mode", and ASR
@@ -38,7 +41,8 @@ interface Scored {
   titleScore: number;
   artistHit: boolean;
   popularity: number;
-  rank: number;
+  /** Position in the merged search results — Spotify's own relevance, low is better. */
+  searchRank: number;
 }
 
 /**
@@ -66,7 +70,12 @@ function titleSimilarity(trackName: string, wanted: string): number {
   return Math.max(phrase * 0.95, whole);
 }
 
-function scoreTrack(track: SpotifyTrack, title: string, artist?: string): Scored {
+function scoreTrack(
+  track: SpotifyTrack,
+  title: string,
+  artist: string | undefined,
+  searchRank: number,
+): Scored {
   const titleScore = titleSimilarity(track.name, title);
 
   const names = (track.artists ?? []).map((entry) => compact(entry.name));
@@ -83,26 +92,30 @@ function scoreTrack(track: SpotifyTrack, title: string, artist?: string): Scored
 
   const popularity = track.popularity ?? 0;
 
-  /*
-   * Within a confident title band, popularity decides ("most played wins").
-   * The 0.72 floor maps a title score of 1.0 to 0.72 + popularity, so an exact
-   * match on a well-known recording beats a fuzzy match on an obscure one, while
-   * a bad match cannot win on popularity alone.
-   */
-  const rank = titleScore * 0.72 + (popularity / 100) * 0.28;
-
-  return { track, titleScore, artistHit, popularity, rank };
+  return { track, titleScore, artistHit, popularity, searchRank };
 }
 
 /** Minimum title similarity worth playing at all. */
 const MIN_TITLE_SCORE = 0.55;
 
 /**
+ * How far below the best title score still counts as "the same song".
+ *
+ * The score cannot separate real ASR confusions — "fine" and "FE!N" both score
+ * 0.95, because they sound alike — so within this band the rider's stated rule
+ * applies instead: play the best-known version. Without the band a literal
+ * "Fine" by an unknown artist beat Travis Scott's "FE!N" purely because its
+ * spelling matched exactly.
+ */
+const TITLE_TIE_BAND = 0.08;
+
+/**
  * Picks the track to play.
  *
  *  - with an artist: only that artist's tracks are considered (falls back to the
  *    full list if the filter would leave nothing)
- *  - then: title similarity, popularity, artist match
+ *  - then: everything within `TITLE_TIE_BAND` of the best title match
+ *  - then: popularity ("most played"), with Spotify's relevance as tiebreaker
  */
 export function pickBestTrack(
   tracks: SpotifyTrack[],
@@ -111,20 +124,24 @@ export function pickBestTrack(
 ): SpotifyTrack | undefined {
   if (tracks.length === 0) return undefined;
 
-  const scored = tracks.map((track) => scoreTrack(track, title, artist));
+  const scored = tracks.map((track, index) => scoreTrack(track, title, artist, index));
   const plausible = scored.filter((entry) => entry.titleScore >= MIN_TITLE_SCORE);
   const pool = plausible.length > 0 ? plausible : scored;
 
   const artistMatches = artist ? pool.filter((entry) => entry.artistHit) : [];
   const finalPool = artistMatches.length > 0 ? artistMatches : pool;
 
-  finalPool.sort((a, b) => {
-    if (b.rank !== a.rank) return b.rank - a.rank;
+  const bestTitleScore = Math.max(...finalPool.map((entry) => entry.titleScore));
+  const bandFloor = Math.max(MIN_TITLE_SCORE, bestTitleScore - TITLE_TIE_BAND);
+  const contenders = finalPool.filter((entry) => entry.titleScore >= bandFloor);
+
+  contenders.sort((a, b) => {
+    if (b.popularity !== a.popularity) return b.popularity - a.popularity;
     if (b.titleScore !== a.titleScore) return b.titleScore - a.titleScore;
-    return b.popularity - a.popularity;
+    return a.searchRank - b.searchRank;
   });
 
-  return finalPool[0]?.track;
+  return contenders[0]?.track;
 }
 
 /** "Believer — Imagine Dragons" for spoken confirmation. */
