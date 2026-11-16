@@ -38,3 +38,24 @@ export function applyVolumeDirection(
     reason: `direction word overrode ${intent} -> ${forced}`,
   };
 }
+
+/** Words that name the thing being changed, after synonym canonicalisation. */
+const VOLUME_NOUNS = new Set(['volume', 'sound', 'music']);
+
+/**
+ * True for an unambiguous volume phrase such as "increase volume" or "turn the
+ * sound down".
+ *
+ * Such a phrase has only two possible meanings and the direction word settles
+ * which one, so it is safe to execute even when the statistical classifier is
+ * unsure. On a noisy bike a rejected volume command is worse than the
+ * classification risk — and the direction guard already removed that risk.
+ */
+export function isExplicitVolumeCommand(canonicalTokens: string[]): boolean {
+  const hasNoun = canonicalTokens.some((token) => VOLUME_NOUNS.has(token));
+  if (!hasNoun) return false;
+
+  return canonicalTokens.some(
+    (token) => UP_WORDS.includes(token) || DOWN_WORDS.includes(token),
+  );
+}

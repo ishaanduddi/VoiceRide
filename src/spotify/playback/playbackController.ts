@@ -484,61 +484,41 @@ export class SpotifyPlaybackController {
      * stepper guarantees at least one step of movement.
      */
     if (isDeviceVolumeAvailable) {
-      const before = await getVolumeDiagnostics();
-      const previousPercent = before ? Math.round(before.percent) : undefined;
-
-      let applied = await stepDeviceVolumePercent(delta);
-      let after = await getVolumeDiagnostics();
-
       /*
-       * OEM audio stacks sometimes swallow the first key press right after the
-       * microphone or a Bluetooth route transition — the rider says "increase
-       * volume", the request is delivered, and nothing moves. For a non-Bluetooth
-       * route the level is readable, so a step that provably did nothing is
-       * retried once. A Bluetooth headset is excluded because its own absolute
-       * volume can change without the phone's index moving; a blind retry there
-       * would apply two steps for one command.
+       * The step is the FIRST thing that happens — exactly what the Ride Mode
+       * "Test: one step louder / quieter" buttons do. Reading diagnostics or
+       * Spotify state first made the two paths differ on some OEM audio stacks
+       * (the button worked, the voice command did not), so nothing is allowed to
+       * run in front of the call any more.
        */
-      if (before && after && before.level === after.level && !before.isBluetooth) {
-        const atLimit =
-          (delta > 0 && before.level >= before.max) || (delta < 0 && before.level <= 0);
-
-        if (!atLimit) {
-          log.info('volume step did not move; retrying once');
-          await sleep(VOLUME_RETRY_DELAY_MS);
-          applied = (await stepDeviceVolumePercent(delta)) ?? applied;
-          after = await getVolumeDiagnostics();
-        }
-      }
+      const applied = await stepDeviceVolumePercent(delta);
+      const diagnostics = await getVolumeDiagnostics();
 
       if (applied !== undefined) {
-        const resultLevel = after?.level;
-        const resultMax = after?.max ?? before?.max;
-        const resolvedPrevious =
-          previousPercent ?? Math.max(0, Math.min(100, Math.round(applied - delta)));
-        let appliedDelta = applied - resolvedPrevious;
+        const level = diagnostics?.level;
+        const maxLevel = diagnostics?.max;
+        const knownPrevious = this.deps.getKnownVolumePercent?.();
+        const previousPercent =
+          typeof knownPrevious === 'number'
+            ? Math.round(knownPrevious)
+            : Math.max(0, Math.min(100, Math.round(applied - delta)));
+
+        let appliedDelta = applied - previousPercent;
         let blockedReason: VolumeChange['blockedReason'];
         let unverified = false;
 
+        /*
+         * A Bluetooth headset's absolute volume can change while the phone's
+         * stream index stays put, so the index is not proof either way. The
+         * outcome is only allowed to say "blocked" when the stream is provably
+         * at a limit.
+         */
         if (appliedDelta === 0) {
-          /*
-           * Order matters. A rider who has already turned the phone up to the
-           * top used to be told "your Bluetooth headset keeps its own volume",
-           * which hid the real reason. The limit is checked first; the headset
-           * explanation is now only the fallback for a level that cannot be
-           * reported at all.
-           */
-          if (typeof resultLevel === 'number' && typeof resultMax === 'number' && resultLevel >= resultMax && delta > 0) {
+          if (typeof level === 'number' && typeof maxLevel === 'number' && level >= maxLevel && delta > 0) {
             blockedReason = 'maximum';
-          } else if (typeof resultLevel === 'number' && resultLevel <= 0 && delta < 0) {
+          } else if (typeof level === 'number' && level <= 0 && delta < 0) {
             blockedReason = 'minimum';
-          } else if (after?.isBluetooth ?? before?.isBluetooth) {
-            /*
-             * The AVRCP volume key press was delivered, but the phone's stream
-             * index does not track a headset's absolute volume. The command is
-             * not blocked, so it must not be reported as such — just without a
-             * number, since the headset owns the actual level.
-             */
+          } else if (diagnostics?.isBluetooth) {
             unverified = true;
             appliedDelta = delta;
           } else {
@@ -548,16 +528,15 @@ export class SpotifyPlaybackController {
 
         this.deps.onVolumeChanged?.(applied, source);
         return {
-          previousPercent: resolvedPrevious,
+          previousPercent,
           volumePercent: applied,
           appliedDelta,
           blockedReason,
           unverified,
           device: {
-            levelBefore: before?.level,
-            levelAfter: after?.level,
-            max: resultMax,
-            bluetooth: Boolean(after?.isBluetooth ?? before?.isBluetooth),
+            levelAfter: level,
+            max: maxLevel,
+            bluetooth: Boolean(diagnostics?.isBluetooth),
           },
         };
       }

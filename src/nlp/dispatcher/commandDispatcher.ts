@@ -106,19 +106,26 @@ export async function dispatchInterpretation(
   try {
     switch (intent) {
       case 'INCREASE_VOLUME': {
-        const change = await controller.changeVolumeBy(volumeStepPercent, 'voice');
+        /*
+         * "increase volume by 5 percent" overrides the Settings step; without an
+         * explicit amount the configured step applies. `changeVolumeBy` makes
+         * exactly the same native call as the Ride Mode test buttons.
+         */
+        const step = interpretation.entities.volumePercent ?? volumeStepPercent;
+        const change = await controller.changeVolumeBy(step, 'voice');
         mark({
           volumePercent: change.volumePercent,
-          lastVolumeCommand: volumeRecord(change, volumeStepPercent),
+          lastVolumeCommand: volumeRecord(change, step),
         });
         return { ok: true, intent, spoken: volumeReply(change) };
       }
 
       case 'DECREASE_VOLUME': {
-        const change = await controller.changeVolumeBy(-volumeStepPercent, 'voice');
+        const step = interpretation.entities.volumePercent ?? volumeStepPercent;
+        const change = await controller.changeVolumeBy(-step, 'voice');
         mark({
           volumePercent: change.volumePercent,
-          lastVolumeCommand: volumeRecord(change, -volumeStepPercent),
+          lastVolumeCommand: volumeRecord(change, -step),
         });
         return { ok: true, intent, spoken: volumeReply(change) };
       }

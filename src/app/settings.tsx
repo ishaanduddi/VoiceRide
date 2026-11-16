@@ -80,6 +80,10 @@ export default function SettingsScreen() {
           selected={settings.volumeStepPercent}
           onSelect={(value) => void updateSettings({ volumeStepPercent: value })}
         />
+        <Text style={styles.note}>
+          Say it explicitly to override this once: “increase volume by 10 percent”. Ride Mode has
+          separate louder/quieter test buttons that make exactly the same call as a voice command.
+        </Text>
       </Card>
 
       <Card

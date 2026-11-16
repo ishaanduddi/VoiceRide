@@ -202,6 +202,7 @@ command vocabulary, which matters a lot for short, noisy utterances.
 | "previous song" / "go back" | `PREVIOUS_SONG` | skip back |
 | "increase volume" / "make it louder" / "turn the music up" | `INCREASE_VOLUME` | **phone** media volume + step |
 | "decrease volume" / "make it quieter" / "turn the music down" | `DECREASE_VOLUME` | **phone** media volume − step |
+| "increase volume by 10 percent" | `INCREASE_VOLUME` | phone media volume + that amount instead of the Settings step |
 | "play believer" / "play song believer" / "play thunder" | `PLAY_SONG` | search Spotify and play the most popular match |
 | "play believer by imagine dragons" | `PLAY_SONG` | play that artist's version |
 | anything else | `UNKNOWN` | *"Sorry, I didn't catch that."* |
@@ -216,7 +217,10 @@ which is why the reply used to repeat the same number.
 With a **Bluetooth headset** the phone cannot read the headset's absolute level back, so the reply is
 just *"Volume up."* / *"Volume down."* instead of a number — the key press was still delivered. A phone
 already at its own maximum says so, rather than blaming the headset. Ride Mode → **Volume** shows the
-hardware step, audio route, fixed-volume and permission state, and a test button for the same code path.
+hardware step, audio route, fixed-volume and permission state, plus **louder/quieter test buttons that
+make exactly the same native call as a voice command** and a *Last voice command* row showing the
+hardware step the command produced. "Increase volume by 10 percent" overrides the Settings step for
+that one command.
 
 Songs are played **by name**, inside a real context. With a bare title the app asks Spotify for matches
 and plays the most popular one (Spotify exposes `popularity`, not play counts); adding an artist —

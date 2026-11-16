@@ -30,6 +30,11 @@ export interface Entities {
   songTitle?: string;
   /** Optional artist filter, from "&lt;title&gt; by &lt;artist&gt;". */
   artist?: string;
+  /**
+   * Explicit volume amount from "increase volume by 5 percent", in 1-100.
+   * Undefined means "use the step configured in Settings".
+   */
+  volumePercent?: number;
 }
 
 /** Result of text normalization (see nlp/preprocessing/normalize.ts). */

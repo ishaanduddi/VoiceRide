@@ -203,6 +203,7 @@ export default function RideModeScreen() {
           label="Confidence"
           value={state.confidence !== undefined ? state.confidence.toFixed(2) : '—'}
         />
+        <Row label="Decision" value={state.decision ?? '—'} />
         <Row label="Response" value={state.lastResponse ?? '—'} />
       </Card>
 
@@ -272,6 +273,7 @@ function VolumeCard() {
   const [diag, setDiag] = useState<VolumeDiagnostics | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const appContext = useAppContext();
+  const settings = useStore(settingsStore);
   const lastVolume = appContext.lastVolumeCommand;
 
   useEffect(() => {
@@ -291,10 +293,16 @@ function VolumeCard() {
     };
   }, []);
 
-  const test = async () => {
+  /**
+   * Exactly the call a voice command makes (`stepDeviceVolumePercent`). The two
+   * buttons exist so the rider can prove the hardware path works without
+   * speaking, and so a failure can be attributed to the microphone/ASR rather
+   * than to the audio API.
+   */
+  const test = async (direction: 1 | -1) => {
     setBusy(true);
     try {
-      await stepDeviceVolumePercent(5);
+      await stepDeviceVolumePercent(direction * settings.volumeStepPercent);
       setDiag(await getVolumeDiagnostics());
     } finally {
       setBusy(false);
@@ -336,26 +344,35 @@ function VolumeCard() {
         label="Last voice command"
         value={
           lastVolume
-            ? `${lastVolume.delta > 0 ? '+' : ''}${lastVolume.delta}% · step ` +
-              `${lastVolume.levelBefore ?? '?'} → ${lastVolume.levelAfter ?? '?'}` +
+            ? `${lastVolume.delta > 0 ? '+' : ''}${lastVolume.delta}% · ` +
+              (lastVolume.levelBefore !== undefined
+                ? `step ${lastVolume.levelBefore} → ${lastVolume.levelAfter ?? '?'}`
+                : `now step ${lastVolume.levelAfter ?? '?'}`) +
               (lastVolume.max ? ` of ${lastVolume.max}` : '') +
               ` · ${lastVolume.outcome === 'headset' ? 'headset (level unreadable)' : lastVolume.outcome}`
             : '—'
         }
       />
 
-      <Button
-        title="Test: one step louder"
-        variant="secondary"
-        loading={busy}
-        onPress={() => void test()}
-      />
+      <View style={styles.testButtons}>
+        <Button
+          title={`Test: +${settings.volumeStepPercent}% louder`}
+          variant="secondary"
+          loading={busy}
+          onPress={() => void test(1)}
+        />
+        <Button
+          title={`Test: −${settings.volumeStepPercent}% quieter`}
+          variant="secondary"
+          loading={busy}
+          onPress={() => void test(-1)}
+        />
+      </View>
 
       <Text style={styles.footnote}>
-        Press the test button while music is playing. “Last voice command” shows what a spoken
-        command actually did: if the step number does not change but the route is Bluetooth, the
-        headset is keeping its own level. You can also type “increase volume” in the command box to
-        test the same path without the microphone.
+        These two buttons make exactly the same call a voice command makes, using the volume step
+        from Settings. “Last voice command” shows what a spoken command actually did. You can also
+        type “increase volume” in the command box to test the same path without the microphone.
       </Text>
     </Card>
   );
@@ -438,5 +455,8 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     lineHeight: 16,
     textAlign: 'center',
+  },
+  testButtons: {
+    gap: spacing(2),
   },
 });
