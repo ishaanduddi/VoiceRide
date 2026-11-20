@@ -11,8 +11,6 @@ export const responses = {
   volume: (percent: number) => `Volume ${Math.round(percent)} percent.`,
   volumeAtMax: 'Volume is already at maximum.',
   volumeAtMin: 'Volume is already at minimum.',
-  /** The step was delivered but the phone's volume did not move at all. */
-  volumeFailed: "I couldn't change the volume. Try the volume keys once, then ask again.",
   /** Used when a Bluetooth headset owns the level, so there is no number to read back. */
   volumeUp: 'Volume up.',
   volumeDown: 'Volume down.',

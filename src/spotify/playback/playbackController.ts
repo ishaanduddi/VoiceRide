@@ -79,7 +79,7 @@ export interface VolumeChange {
    * Set when the level could not move: already at a limit, or a headset that
    * keeps its own volume.
    */
-  blockedReason?: 'maximum' | 'minimum' | 'failed';
+  blockedReason?: 'maximum' | 'minimum';
   /**
    * The request was sent but the phone's media stream stayed on the same index,
    * which is normal with a Bluetooth headset using AVRCP absolute volume. The
@@ -529,23 +529,21 @@ export class SpotifyPlaybackController {
         let unverified = false;
 
         if (!moved) {
-          if (delta > 0 && step.levelAfter >= step.max) {
+          if (delta > 0 && step.levelBefore >= step.max) {
             blockedReason = 'maximum';
-          } else if (delta < 0 && step.levelAfter <= 0) {
+          } else if (delta < 0 && step.levelBefore <= 0) {
             blockedReason = 'minimum';
-          } else if (step.bluetooth) {
+          } else {
             /*
-             * The AVRCP key press was delivered, but the phone's stream index
-             * does not track a headset's absolute volume. The command is not
-             * blocked, so it must not be reported as such — just without a
-             * number, since the headset owns the actual level.
+             * The key press was delivered but this audio stack does not report
+             * the resulting level (typical for a Bluetooth headset with absolute
+             * volume, and some OEMs hide it even on the speaker). The command is
+             * not blocked, so it must not be reported as such — say the
+             * direction and leave the number out instead of inventing a limit or
+             * a failure. The Ride Mode card still shows the raw levels.
              */
             unverified = true;
             appliedDelta = delta;
-          } else {
-            // Delivered, provably did nothing, and not at a limit: report that
-            // honestly instead of claiming a limit that does not exist.
-            blockedReason = 'failed';
           }
         }
 

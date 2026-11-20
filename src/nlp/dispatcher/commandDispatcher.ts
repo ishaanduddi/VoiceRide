@@ -45,8 +45,6 @@ function volumeReply(change: VolumeChange): string {
       return responses.volumeAtMax;
     case 'minimum':
       return responses.volumeAtMin;
-    case 'failed':
-      return responses.volumeFailed;
     default:
       /*
        * With a Bluetooth headset the level cannot be read back, so reporting a

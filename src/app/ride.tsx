@@ -16,7 +16,7 @@ import {
   type VolumeDiagnostics,
 } from '@/audio/deviceVolume';
 import { useRideMode, type RideStatus } from '@/ride/useRideMode';
-import { useAppContext } from '@/state/contextStore';
+import { contextManager, useAppContext } from '@/state/contextStore';
 import { libraryStore } from '@/state/libraryStore';
 import { useStore } from '@/state/observable';
 import { sessionStore } from '@/state/sessionStore';
@@ -302,7 +302,10 @@ function VolumeCard() {
   const test = async (direction: 1 | -1) => {
     setBusy(true);
     try {
-      await stepDeviceVolumePercent(direction * settings.volumeStepPercent);
+      const result = await stepDeviceVolumePercent(direction * settings.volumeStepPercent);
+      if (result) {
+        contextManager.setState({ volumePercent: Math.round(result.percent) });
+      }
       setDiag(await getVolumeDiagnostics());
     } finally {
       setBusy(false);

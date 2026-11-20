@@ -71,6 +71,23 @@ class VoiceSystemModule : Module() {
   private fun maxVolume(audio: AudioManager): Int =
     audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
 
+  /**
+   * Whether the current output is a Bluetooth device that may own its volume.
+   *
+   * The deprecated `isBluetoothA2dpOn` / `isBluetoothScoOn` flags miss LE Audio
+   * and can flip false while the microphone is open, which made the app report a
+   * failure on a route where the step was actually delivered. The output device
+   * list is the authoritative answer.
+   */
+  private fun isBluetoothOutput(audio: AudioManager): Boolean =
+    audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { device ->
+      device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+        device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+        (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+          (device.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+            device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER))
+    }
+
   /** Inputs that are actually microphones (headset, USB, Bluetooth), best first. */
   private fun preferredInputTypes(): List<Int> {
     val types = mutableListOf(
@@ -180,8 +197,7 @@ class VoiceSystemModule : Module() {
      */
     AsyncFunction("isBluetoothAudioActive") {
       val audio = audioManager() ?: return@AsyncFunction false
-      @Suppress("DEPRECATION")
-      audio.isBluetoothA2dpOn || audio.isBluetoothScoOn
+      isBluetoothOutput(audio)
     }
 
     /**
@@ -234,8 +250,7 @@ class VoiceSystemModule : Module() {
         }
       }
 
-      @Suppress("DEPRECATION")
-      val bluetooth = audio.isBluetoothA2dpOn || audio.isBluetoothScoOn
+      val bluetooth = isBluetoothOutput(audio)
 
       mapOf(
         "percent" to (after * 100.0) / max,
@@ -261,8 +276,7 @@ class VoiceSystemModule : Module() {
         Manifest.permission.MODIFY_AUDIO_SETTINGS
       ) == PackageManager.PERMISSION_GRANTED
 
-      @Suppress("DEPRECATION")
-      val bluetooth = audio.isBluetoothA2dpOn || audio.isBluetoothScoOn
+      val bluetooth = isBluetoothOutput(audio)
 
       mapOf(
         "level" to level,
