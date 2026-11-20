@@ -13,9 +13,12 @@
 
 import { Platform } from 'react-native';
 
-import VoiceSystem, { type VolumeDiagnostics } from '../../modules/voice-system';
+import VoiceSystem, {
+  type VolumeDiagnostics,
+  type VolumeStepResult,
+} from '../../modules/voice-system';
 
-export type { VolumeDiagnostics };
+export type { VolumeDiagnostics, VolumeStepResult };
 
 /** Non-null only where the phone volume can be read and written from JS. */
 const native = Platform.OS === 'android' ? VoiceSystem : null;
@@ -66,20 +69,24 @@ export async function getDeviceVolumeSteps(): Promise<number | undefined> {
 
 /**
  * Moves the phone's media volume by `deltaPercent`, by at least one hardware
- * step.
+ * step, and reports the raw levels around the change.
  *
  * Phones quantise volume to 15-25 steps, so adding 5% can round to the step it is
  * already on — "increase volume" then repeats the same number and nothing is
- * audible. Stepping in hardware units is the only way to guarantee a change.
+ * audible. Stepping in hardware units is the only way to guarantee a change, and
+ * the returned levels are what make "maximum" a fact rather than a guess.
  */
 export async function stepDeviceVolumePercent(
   deltaPercent: number,
-): Promise<number | undefined> {
+): Promise<VolumeStepResult | undefined> {
   if (!native) return undefined;
 
   try {
-    const applied = await native.stepMediaVolume(deltaPercent);
-    return Number.isFinite(applied) && applied >= 0 ? Math.round(applied) : undefined;
+    const result = await native.stepMediaVolume(deltaPercent);
+    if (!result || typeof result.percent !== 'number' || !Number.isFinite(result.percent)) {
+      return undefined;
+    }
+    return result;
   } catch {
     return undefined;
   }

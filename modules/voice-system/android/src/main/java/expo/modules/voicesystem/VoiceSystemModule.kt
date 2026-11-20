@@ -191,9 +191,13 @@ class VoiceSystemModule : Module() {
      * copes with Bluetooth absolute volume and devices where `setStreamVolume`
      * is silently ignored, which is why plain percentage maths was not enough.
      * If the OEM framework still ignores it, the stream index is set directly.
+     *
+     * Returns the raw levels around the change, not just a percentage: a caller
+     * must know whether the stream *moved* before it can claim "maximum" or
+     * "minimum", and a percentage alone cannot tell that apart from rounding.
      */
     AsyncFunction("stepMediaVolume") { deltaPercent: Double ->
-      val audio = audioManager() ?: return@AsyncFunction -1.0
+      val audio = audioManager() ?: return@AsyncFunction emptyMap<String, Any?>()
       val max = maxVolume(audio)
       val before = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
 
@@ -230,7 +234,16 @@ class VoiceSystemModule : Module() {
         }
       }
 
-      (after * 100.0) / max
+      @Suppress("DEPRECATION")
+      val bluetooth = audio.isBluetoothA2dpOn || audio.isBluetoothScoOn
+
+      mapOf(
+        "percent" to (after * 100.0) / max,
+        "levelBefore" to before,
+        "levelAfter" to after,
+        "max" to max,
+        "bluetooth" to bluetooth
+      )
     }
 
     /**

@@ -14,7 +14,7 @@ export interface VolumeCommandRecord {
   /** Volume the app reports after the change, 0-100. */
   percent: number;
   bluetooth: boolean;
-  outcome: 'applied' | 'maximum' | 'minimum' | 'headset';
+  outcome: 'applied' | 'maximum' | 'minimum' | 'headset' | 'failed';
 }
 
 export interface AppContext {

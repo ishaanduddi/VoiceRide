@@ -42,6 +42,25 @@ export interface VolumeDiagnostics {
   isBluetooth: boolean;
 }
 
+/**
+ * What a volume step actually did.
+ *
+ * The raw levels matter: a percentage can stay the same after rounding even when
+ * the stream moved, and claiming "already at maximum" from a rounded percentage
+ * was wrong on this project's test phone.
+ */
+export interface VolumeStepResult {
+  /** Resulting media volume, 0-100. */
+  percent: number;
+  /** Stream index before/after the step, in device units. */
+  levelBefore: number;
+  levelAfter: number;
+  /** Number of steps the phone exposes. */
+  max: number;
+  /** Sound is routed to Bluetooth, which may keep its own volume. */
+  bluetooth: boolean;
+}
+
 export interface VoiceSystemSubscription {
   remove(): void;
 }
@@ -55,9 +74,9 @@ export interface VoiceSystemNativeModule {
   getMediaVolumeSteps(): Promise<number>;
   /**
    * Moves media volume by a percentage, by at least one hardware step.
-   * Resolves with the level actually applied (0-100).
+   * Resolves with the raw levels around the change (see `VolumeStepResult`).
    */
-  stepMediaVolume(deltaPercent: number): Promise<number>;
+  stepMediaVolume(deltaPercent: number): Promise<VolumeStepResult>;
   /** Whether sound is going out over Bluetooth right now. */
   isBluetoothAudioActive(): Promise<boolean>;
   /** Raw volume state, for the on-device diagnostics card. */
