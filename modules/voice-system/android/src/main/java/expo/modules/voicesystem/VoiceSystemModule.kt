@@ -216,9 +216,12 @@ class VoiceSystemModule : Module() {
       val audio = audioManager() ?: return@AsyncFunction emptyMap<String, Any?>()
       val max = maxVolume(audio)
       val before = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+      val bluetooth = isBluetoothOutput(audio)
 
       val direction = if (deltaPercent >= 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
       val magnitude = max(1, (kotlin.math.abs(deltaPercent) / 100.0 * max).roundToInt())
+      val target = (before + (if (deltaPercent >= 0) magnitude else -magnitude))
+        .coerceIn(0, max)
 
       for (index in 0 until magnitude) {
         try {
@@ -237,20 +240,30 @@ class VoiceSystemModule : Module() {
 
       var after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
 
-      if (after == before) {
-        // Some OEM frameworks ignore the adjust call for third-party apps.
-        val target = (before + (if (deltaPercent >= 0) magnitude else -magnitude))
-          .coerceIn(0, max)
-
+      /*
+       * An absolute set is what makes a Bluetooth headset follow at all.
+       *
+       * A relative key press reaches the headset over AVRCP, but some OEM
+       * implementations only forward the *absolute* volume (the path SystemUI's
+       * Bluetooth slider uses). AudioManager.FLAG_BLUETOOTH_ABS_VOLUME is hidden
+       * from the public SDK; its value is 64. Setting the same target the key
+       * press aimed at is idempotent, so this cannot double-apply a step.
+       */
+      if (bluetooth || after == before) {
         try {
-          audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+          val flags = if (bluetooth) 64 else AudioManager.FLAG_SHOW_UI
+          audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, flags)
           after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
         } catch (error: SecurityException) {
           android.util.Log.w("VoiceSystem", "volume set refused", error)
         }
       }
 
-      val bluetooth = isBluetoothOutput(audio)
+      android.util.Log.i(
+        "VoiceSystem",
+        "volume step delta=$deltaPercent before=$before target=$target after=$after " +
+          "max=$max bluetooth=$bluetooth"
+      )
 
       mapOf(
         "percent" to (after * 100.0) / max,
