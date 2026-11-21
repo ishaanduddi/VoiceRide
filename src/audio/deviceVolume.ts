@@ -18,6 +18,7 @@
 import { Platform } from 'react-native';
 import { VolumeManager } from 'react-native-volume-manager';
 
+import { sleep } from '@/utils/async';
 import { microphoneControl } from '@/voice/microphone/micControl';
 
 import VoiceSystem, {
@@ -35,6 +36,14 @@ export const isDeviceVolumeAvailable = Platform.OS === 'android';
 
 /** Used only when the native step count is unavailable. */
 const DEFAULT_VOLUME_STEPS = 15;
+
+/**
+ * How long to wait after stopping the recorder before changing the volume.
+ *
+ * Android needs a moment to move a headset out of its voice (SCO) route and back
+ * to media; changing the volume inside that window is what some phones ignore.
+ */
+const MIC_SETTLE_MS = 250;
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -120,6 +129,9 @@ export async function stepDeviceVolumePercent(
     } catch {
       // The microphone is already stopped; continue with the volume change.
     }
+
+    // Let Android return a headset from its voice route to media.
+    await sleep(MIC_SETTLE_MS);
   }
 
   try {
