@@ -29,6 +29,7 @@ import { createLogger } from '@/utils/logger';
 import { audioConfig } from '@/config';
 import { concatFloat32 } from '@/voice/audioProcessing/pcm';
 import { useMicrophoneStream, type MicrophoneFrame, type UseMicrophoneStreamResult } from '@/voice/microphone/useMicrophoneStream';
+import { microphoneControl } from '@/voice/microphone/micControl';
 import type { VadEvent } from '@/voice/vad/energyVad';
 
 const log = createLogger('ride');
@@ -340,6 +341,23 @@ export function useRideMode(): UseRideModeResult {
   useEffect(() => {
     microphoneRef.current = microphone;
   }, [microphone]);
+
+  /*
+   * Let the volume stepper release the microphone while it changes the stream.
+   * A recording stream can hold a headset in its voice (SCO) route, where some
+   * phones ignore music-volume changes.
+   */
+  useEffect(() => {
+    microphoneControl.pause = microphone.stop;
+    microphoneControl.resume = microphone.start;
+    microphoneControl.isActive = () => microphone.isActive;
+
+    return () => {
+      microphoneControl.pause = undefined;
+      microphoneControl.resume = undefined;
+      microphoneControl.isActive = undefined;
+    };
+  }, [microphone.isActive, microphone.start, microphone.stop]);
 
   /** Keeps the adaptive engine in sync with the chosen profile. */
   useEffect(() => {

@@ -18,6 +18,8 @@
 import { Platform } from 'react-native';
 import { VolumeManager } from 'react-native-volume-manager';
 
+import { microphoneControl } from '@/voice/microphone/micControl';
+
 import VoiceSystem, {
   type VolumeDiagnostics,
   type VolumeStepResult,
@@ -103,43 +105,70 @@ export async function getDeviceVolumeSteps(): Promise<number | undefined> {
 export async function stepDeviceVolumePercent(
   deltaPercent: number,
 ): Promise<VolumeStepResult | undefined> {
-  const max = (await getDeviceVolumeSteps()) ?? DEFAULT_VOLUME_STEPS;
-
-  try {
-    const before = await VolumeManager.getVolume();
-    const levelBefore = Math.round(clamp01(before.volume) * max);
-    const direction = deltaPercent >= 0 ? 1 : -1;
-    const magnitude = Math.max(1, Math.round((Math.abs(deltaPercent) / 100) * max));
-    const levelAfterTarget = Math.max(0, Math.min(max, levelBefore + direction * magnitude));
-
-    await VolumeManager.setVolume(levelAfterTarget / max, {
-      type: 'music',
-      showUI: true,
-      playSound: true,
-    });
-
-    const after = await VolumeManager.getVolume();
-    const levelAfter = Math.round(clamp01(after.volume) * max);
-
-    return {
-      percent: toPercent(after.volume),
-      levelBefore,
-      levelAfter,
-      max,
-      bluetooth: await isBluetoothAudioActive(),
-    };
-  } catch {
-    // Library not linked — use the local module instead.
+  /*
+   * Release the microphone for the moment of the change.
+   *
+   * While a recording stream is open, a headset can stay in its voice (SCO)
+   * route, where some phones ignore music-stream changes — which is why a spoken
+   * command could fail while the same call from the test button worked. pausing
+   * capture for ~100 ms makes both paths use the identical audio state.
+   */
+  const wasCapturing = microphoneControl.isActive?.() === true;
+  if (wasCapturing) {
+    try {
+      microphoneControl.pause?.();
+    } catch {
+      // The microphone is already stopped; continue with the volume change.
+    }
   }
 
-  if (!native) return undefined;
   try {
-    const result = await native.stepMediaVolume(deltaPercent);
-    return result && typeof result.percent === 'number' && Number.isFinite(result.percent)
-      ? result
-      : undefined;
-  } catch {
-    return undefined;
+    const max = (await getDeviceVolumeSteps()) ?? DEFAULT_VOLUME_STEPS;
+
+    try {
+      const before = await VolumeManager.getVolume();
+      const levelBefore = Math.round(clamp01(before.volume) * max);
+      const direction = deltaPercent >= 0 ? 1 : -1;
+      const magnitude = Math.max(1, Math.round((Math.abs(deltaPercent) / 100) * max));
+      const levelAfterTarget = Math.max(0, Math.min(max, levelBefore + direction * magnitude));
+
+      await VolumeManager.setVolume(levelAfterTarget / max, {
+        type: 'music',
+        showUI: true,
+        playSound: true,
+      });
+
+      const after = await VolumeManager.getVolume();
+      const levelAfter = Math.round(clamp01(after.volume) * max);
+
+      return {
+        percent: toPercent(after.volume),
+        levelBefore,
+        levelAfter,
+        max,
+        bluetooth: await isBluetoothAudioActive(),
+      };
+    } catch {
+      // Library not linked — use the local module instead.
+    }
+
+    if (!native) return undefined;
+    try {
+      const result = await native.stepMediaVolume(deltaPercent);
+      return result && typeof result.percent === 'number' && Number.isFinite(result.percent)
+        ? result
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  } finally {
+    if (wasCapturing) {
+      try {
+        await microphoneControl.resume?.();
+      } catch {
+        // Ride Mode's own start/stop cycle will restore capture on next mount.
+      }
+    }
   }
 }
 
