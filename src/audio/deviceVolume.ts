@@ -6,20 +6,12 @@
  * *internal* volume instead, and many devices (this project's test phone
  * included) reject it with "Restriction violated".
  *
- * The actual change is done with `react-native-volume-manager`, which sets the
- * `music` stream with `showUI` + `playSound`. `playSound` matters on a Bluetooth
- * headset: it makes Android route the change through the active output, exactly
- * like a hardware key press.
- *
- * The local `voice-system` module is still used for what the library does not
- * expose: the hardware step count, the audio route, and the diagnostics card.
+ * Backed by the local `voice-system` native module (Android only). When the
+ * module is unavailable — Expo Go, iOS, or a build made before it was added —
+ * callers fall back to the Spotify API.
  */
 
 import { Platform } from 'react-native';
-import { VolumeManager } from 'react-native-volume-manager';
-
-import { sleep } from '@/utils/async';
-import { microphoneControl } from '@/voice/microphone/micControl';
 
 import VoiceSystem, {
   type VolumeDiagnostics,
@@ -28,71 +20,43 @@ import VoiceSystem, {
 
 export type { VolumeDiagnostics, VolumeStepResult };
 
-/** Non-null only on Android, where the native module exists. */
+/** Non-null only where the phone volume can be read and written from JS. */
 const native = Platform.OS === 'android' ? VoiceSystem : null;
 
 /** True when the phone volume can be read and written from JS. */
-export const isDeviceVolumeAvailable = Platform.OS === 'android';
-
-/** Used only when the native step count is unavailable. */
-const DEFAULT_VOLUME_STEPS = 15;
-
-/**
- * How long to wait after stopping the recorder before changing the volume.
- *
- * Android needs a moment to move a headset out of its voice (SCO) route and back
- * to media; changing the volume inside that window is what some phones ignore.
- */
-const MIC_SETTLE_MS = 250;
-
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value));
-}
-
-/** The library exposes 0-1; the app speaks and shows percentages. */
-function toPercent(volume: number): number {
-  return Math.round(clamp01(volume) * 100);
-}
+export const isDeviceVolumeAvailable = native !== null;
 
 /** Device media volume, 0-100. `undefined` when unsupported. */
 export async function getDeviceVolumePercent(): Promise<number | undefined> {
-  try {
-    const { volume } = await VolumeManager.getVolume();
-    return Number.isFinite(volume) ? toPercent(volume) : undefined;
-  } catch {
-    // Library not linked (e.g. Expo Go) — use the local module instead.
-  }
-
   if (!native) return undefined;
   try {
     const value = await native.getMediaVolume();
+    // The native side answers -1 when the audio service cannot be reached.
     return Number.isFinite(value) && value >= 0 ? Math.round(value) : undefined;
   } catch {
     return undefined;
   }
 }
 
-/** Sets media volume to `percent` and resolves with the level actually applied. */
+/**
+ * Sets device media volume to `percent` and resolves with the level actually
+ * applied. Phones have a fixed number of steps (often 15-25), so the result can
+ * differ slightly from the request — the applied value is what the rider should
+ * be told.
+ */
 export async function setDeviceVolumePercent(percent: number): Promise<number | undefined> {
-  const target = clamp01(percent / 100);
-
-  try {
-    await VolumeManager.setVolume(target, { type: 'music', showUI: true, playSound: true });
-    return getDeviceVolumePercent();
-  } catch {
-    // Library not linked — use the local module instead.
-  }
-
   if (!native) return undefined;
+
+  const target = Math.max(0, Math.min(100, Math.round(percent)));
   try {
-    const applied = await native.setMediaVolume(percent);
+    const applied = await native.setMediaVolume(target);
     return Number.isFinite(applied) && applied >= 0 ? Math.round(applied) : undefined;
   } catch {
     return undefined;
   }
 }
 
-/** Number of hardware volume steps (e.g. 15). */
+/** Number of hardware volume steps (diagnostics only). */
 export async function getDeviceVolumeSteps(): Promise<number | undefined> {
   if (!native) return undefined;
   try {
@@ -104,83 +68,27 @@ export async function getDeviceVolumeSteps(): Promise<number | undefined> {
 }
 
 /**
- * Moves the media volume by `deltaPercent`.
+ * Moves the phone's media volume by `deltaPercent`, by at least one hardware
+ * step, and reports the raw levels around the change.
  *
- * This is deliberately the plain version: read the volume, move by whole
- * hardware steps (so "+5%" is never rounded back to the same step), and set the
- * `music` stream with the system UI and the key-press sound. The raw levels are
- * returned so the UI can say whether the stream really moved instead of guessing.
+ * Phones quantise volume to 15-25 steps, so adding 5% can round to the step it is
+ * already on — "increase volume" then repeats the same number and nothing is
+ * audible. Stepping in hardware units is the only way to guarantee a change, and
+ * the returned levels are what make "maximum" a fact rather than a guess.
  */
 export async function stepDeviceVolumePercent(
   deltaPercent: number,
 ): Promise<VolumeStepResult | undefined> {
-  /*
-   * Release the microphone for the moment of the change.
-   *
-   * While a recording stream is open, a headset can stay in its voice (SCO)
-   * route, where some phones ignore music-stream changes — which is why a spoken
-   * command could fail while the same call from the test button worked. pausing
-   * capture for ~100 ms makes both paths use the identical audio state.
-   */
-  const wasCapturing = microphoneControl.isActive?.() === true;
-  if (wasCapturing) {
-    try {
-      microphoneControl.pause?.();
-    } catch {
-      // The microphone is already stopped; continue with the volume change.
-    }
-
-    // Let Android return a headset from its voice route to media.
-    await sleep(MIC_SETTLE_MS);
-  }
+  if (!native) return undefined;
 
   try {
-    const max = (await getDeviceVolumeSteps()) ?? DEFAULT_VOLUME_STEPS;
-
-    try {
-      const before = await VolumeManager.getVolume();
-      const levelBefore = Math.round(clamp01(before.volume) * max);
-      const direction = deltaPercent >= 0 ? 1 : -1;
-      const magnitude = Math.max(1, Math.round((Math.abs(deltaPercent) / 100) * max));
-      const levelAfterTarget = Math.max(0, Math.min(max, levelBefore + direction * magnitude));
-
-      await VolumeManager.setVolume(levelAfterTarget / max, {
-        type: 'music',
-        showUI: true,
-        playSound: true,
-      });
-
-      const after = await VolumeManager.getVolume();
-      const levelAfter = Math.round(clamp01(after.volume) * max);
-
-      return {
-        percent: toPercent(after.volume),
-        levelBefore,
-        levelAfter,
-        max,
-        bluetooth: await isBluetoothAudioActive(),
-      };
-    } catch {
-      // Library not linked — use the local module instead.
-    }
-
-    if (!native) return undefined;
-    try {
-      const result = await native.stepMediaVolume(deltaPercent);
-      return result && typeof result.percent === 'number' && Number.isFinite(result.percent)
-        ? result
-        : undefined;
-    } catch {
+    const result = await native.stepMediaVolume(deltaPercent);
+    if (!result || typeof result.percent !== 'number' || !Number.isFinite(result.percent)) {
       return undefined;
     }
-  } finally {
-    if (wasCapturing) {
-      try {
-        await microphoneControl.resume?.();
-      } catch {
-        // Ride Mode's own start/stop cycle will restore capture on next mount.
-      }
-    }
+    return result;
+  } catch {
+    return undefined;
   }
 }
 
@@ -196,7 +104,8 @@ export async function isBluetoothAudioActive(): Promise<boolean> {
 
 /**
  * Raw volume state for the diagnostics card: the hardware step, whether apps are
- * allowed to change it, and where the sound is going.
+ * allowed to change it, and where the sound is going. This is what distinguishes
+ * "the command did nothing" from "the headset owns its own volume".
  */
 export async function getVolumeDiagnostics(): Promise<VolumeDiagnostics | undefined> {
   if (!native) return undefined;

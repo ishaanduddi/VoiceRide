@@ -216,12 +216,9 @@ class VoiceSystemModule : Module() {
       val audio = audioManager() ?: return@AsyncFunction emptyMap<String, Any?>()
       val max = maxVolume(audio)
       val before = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-      val bluetooth = isBluetoothOutput(audio)
 
       val direction = if (deltaPercent >= 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
       val magnitude = max(1, (kotlin.math.abs(deltaPercent) / 100.0 * max).roundToInt())
-      val target = (before + (if (deltaPercent >= 0) magnitude else -magnitude))
-        .coerceIn(0, max)
 
       for (index in 0 until magnitude) {
         try {
@@ -240,29 +237,55 @@ class VoiceSystemModule : Module() {
 
       var after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
 
-      /*
-       * An absolute set is what makes a Bluetooth headset follow at all.
-       *
-       * A relative key press reaches the headset over AVRCP, but some OEM
-       * implementations only forward the *absolute* volume (the path SystemUI's
-       * Bluetooth slider uses). AudioManager.FLAG_BLUETOOTH_ABS_VOLUME is hidden
-       * from the public SDK; its value is 64. Setting the same target the key
-       * press aimed at is idempotent, so this cannot double-apply a step.
-       */
-      if (bluetooth || after == before) {
+      if (after == before) {
+        // Some OEM frameworks ignore the adjust call for third-party apps.
+        val target = (before + (if (deltaPercent >= 0) magnitude else -magnitude))
+          .coerceIn(0, max)
+
         try {
-          val flags = if (bluetooth) 64 else AudioManager.FLAG_SHOW_UI
-          audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, flags)
+          audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
           after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
         } catch (error: SecurityException) {
           android.util.Log.w("VoiceSystem", "volume set refused", error)
         }
       }
 
+      /*
+       * While the microphone records through a Bluetooth headset, Android can
+       * keep music on the voice (SCO) route. That route's level is
+       * STREAM_VOICE_CALL, not STREAM_MUSIC, so a command issued with the mic
+       * open changes a stream the rider cannot hear — which is exactly the
+       * "the button works but the command does not" symptom. Adjust the call
+       * stream too while that route is active; on normal media routing this
+       * branch is skipped.
+       */
+      @Suppress("DEPRECATION")
+      val voiceRouteActive =
+        audio.isBluetoothScoOn || audio.mode == AudioManager.MODE_IN_COMMUNICATION
+
+      if (voiceRouteActive) {
+        val callMax = audio.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL).coerceAtLeast(1)
+        val callBefore = audio.getStreamVolume(AudioManager.STREAM_VOICE_CALL)
+        val callTarget = (callBefore + (if (deltaPercent >= 0) magnitude else -magnitude))
+          .coerceIn(0, callMax)
+
+        try {
+          audio.setStreamVolume(
+            AudioManager.STREAM_VOICE_CALL,
+            callTarget,
+            AudioManager.FLAG_SHOW_UI
+          )
+        } catch (error: SecurityException) {
+          android.util.Log.w("VoiceSystem", "call volume set refused", error)
+        }
+      }
+
+      val bluetooth = isBluetoothOutput(audio)
+
       android.util.Log.i(
         "VoiceSystem",
-        "volume step delta=$deltaPercent before=$before target=$target after=$after " +
-          "max=$max bluetooth=$bluetooth"
+        "step delta=$deltaPercent before=$before after=$after max=$max " +
+          "bluetooth=$bluetooth voiceRoute=$voiceRouteActive"
       )
 
       mapOf(

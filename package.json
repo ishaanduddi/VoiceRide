@@ -36,7 +36,6 @@
     "react-native": "0.86.3",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
-    "react-native-volume-manager": "^2.2.0",
     "whisper.rn": "^0.7.4"
   },
   "devDependencies": {
