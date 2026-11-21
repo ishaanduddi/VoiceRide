@@ -227,8 +227,14 @@ class VoiceSystemModule : Module() {
            * some OEM audio stacks (vivo/OriginOS included) route a silent
            * programmatic change differently from a user-initiated one, and a
            * Bluetooth headset only follows the user-initiated path reliably.
+           * FLAG_PLAY_SOUND additionally plays the system's volume feedback
+           * through the active route, which forces the audio HAL to apply it.
            */
-          audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
+          audio.adjustStreamVolume(
+            AudioManager.STREAM_MUSIC,
+            direction,
+            AudioManager.FLAG_SHOW_UI or AudioManager.FLAG_PLAY_SOUND
+          )
         } catch (error: SecurityException) {
           android.util.Log.w("VoiceSystem", "volume adjust refused", error)
           break
@@ -243,7 +249,11 @@ class VoiceSystemModule : Module() {
           .coerceIn(0, max)
 
         try {
-          audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+          audio.setStreamVolume(
+            AudioManager.STREAM_MUSIC,
+            target,
+            AudioManager.FLAG_SHOW_UI or AudioManager.FLAG_PLAY_SOUND
+          )
           after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
         } catch (error: SecurityException) {
           android.util.Log.w("VoiceSystem", "volume set refused", error)
@@ -293,7 +303,9 @@ class VoiceSystemModule : Module() {
         "levelBefore" to before,
         "levelAfter" to after,
         "max" to max,
-        "bluetooth" to bluetooth
+        "bluetooth" to bluetooth,
+        "voiceRoute" to voiceRouteActive,
+        "audioMode" to audio.mode
       )
     }
 

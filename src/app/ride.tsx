@@ -14,6 +14,7 @@ import {
   isDeviceVolumeAvailable,
   stepDeviceVolumePercent,
   type VolumeDiagnostics,
+  type VolumeStepResult,
 } from '@/audio/deviceVolume';
 import { useRideMode, type RideStatus } from '@/ride/useRideMode';
 import { contextManager, useAppContext } from '@/state/contextStore';
@@ -271,6 +272,7 @@ function Row({ label, value }: { label: string; value: string }) {
  */
 function VolumeCard() {
   const [diag, setDiag] = useState<VolumeDiagnostics | undefined>(undefined);
+  const [lastTest, setLastTest] = useState<VolumeStepResult | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const appContext = useAppContext();
   const settings = useStore(settingsStore);
@@ -304,6 +306,7 @@ function VolumeCard() {
     try {
       const result = await stepDeviceVolumePercent(direction * settings.volumeStepPercent);
       if (result) {
+        setLastTest(result);
         contextManager.setState({ volumePercent: Math.round(result.percent) });
       }
       setDiag(await getVolumeDiagnostics());
@@ -352,7 +355,19 @@ function VolumeCard() {
                 ? `step ${lastVolume.levelBefore} → ${lastVolume.levelAfter ?? '?'}`
                 : `now step ${lastVolume.levelAfter ?? '?'}`) +
               (lastVolume.max ? ` of ${lastVolume.max}` : '') +
+              (lastVolume.voiceRoute ? ' · voice route' : '') +
               ` · ${lastVolume.outcome === 'headset' ? 'headset (level unreadable)' : lastVolume.outcome}`
+            : '—'
+        }
+      />
+
+      <Row
+        label="Last test"
+        value={
+          lastTest
+            ? `step ${lastTest.levelBefore} → ${lastTest.levelAfter} of ${lastTest.max}` +
+              (lastTest.bluetooth ? ' · Bluetooth' : '') +
+              (lastTest.voiceRoute ? ' · voice route' : '')
             : '—'
         }
       />

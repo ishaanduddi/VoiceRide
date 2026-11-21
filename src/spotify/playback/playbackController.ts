@@ -92,6 +92,10 @@ export interface VolumeChange {
     levelAfter?: number;
     max?: number;
     bluetooth: boolean;
+    /** The voice (SCO / communication) route was active during the step. */
+    voiceRoute?: boolean;
+    /** Raw AudioManager mode (0 = normal, 3 = communication). */
+    audioMode?: number;
   };
 }
 
@@ -522,6 +526,8 @@ export class SpotifyPlaybackController {
             levelAfter: step.levelAfter,
             max: step.max,
             bluetooth: step.bluetooth,
+            voiceRoute: step.voiceRoute,
+            audioMode: step.audioMode,
           },
         };
       }

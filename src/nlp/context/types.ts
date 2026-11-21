@@ -14,6 +14,10 @@ export interface VolumeCommandRecord {
   /** Volume the app reports after the change, 0-100. */
   percent: number;
   bluetooth: boolean;
+  /** The voice (SCO / communication) route was active during the step. */
+  voiceRoute?: boolean;
+  /** Raw AudioManager mode (0 = normal, 3 = communication). */
+  audioMode?: number;
   outcome: 'applied' | 'maximum' | 'minimum' | 'headset';
 }
 

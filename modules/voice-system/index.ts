@@ -59,6 +59,10 @@ export interface VolumeStepResult {
   max: number;
   /** Sound is routed to Bluetooth, which may keep its own volume. */
   bluetooth: boolean;
+  /** The voice (SCO / communication) route was active during the step. */
+  voiceRoute?: boolean;
+  /** Raw AudioManager mode (0 = normal, 3 = communication). */
+  audioMode?: number;
 }
 
 export interface VoiceSystemSubscription {
