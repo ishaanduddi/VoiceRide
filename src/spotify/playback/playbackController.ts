@@ -475,56 +475,28 @@ export class SpotifyPlaybackController {
   /** Relative volume change, e.g. +5 or -5 percentage points. */
   async changeVolumeBy(delta: number, source: VolumeSource = 'voice'): Promise<VolumeChange> {
     /*
-     * Step in hardware units rather than percentages.
-     *
-     * `setVolumeAbsolute(previous + 5)` looks correct but phones only have 15-25
-     * volume steps, so the rounded target often lands on the current step: the
-     * reply repeats the same percentage and nothing is audible. The native
-     * stepper guarantees at least one step of movement.
+     * One simple step on the phone's music stream (see audio/deviceVolume.ts):
+     * read the level, move by whole hardware steps, set it with the system UI
+     * and the key-press sound. Phones only have 15-25 steps, so percentage maths
+     * would often round back to the current level.
      */
     if (isDeviceVolumeAvailable) {
-      /*
-       * The step is the FIRST thing that happens — exactly what the Ride Mode
-       * "Test: louder / quieter" buttons do. Reading diagnostics or Spotify state
-       * first made the two paths differ on some OEM audio stacks (the button
-       * worked, the voice command did not), so nothing runs in front of it.
-       */
-      let step = await stepDeviceVolumePercent(delta);
+      const step = await stepDeviceVolumePercent(delta);
 
       if (step) {
         const previousPercent =
           step.max > 0
             ? Math.round((step.levelBefore * 100) / step.max)
             : Math.max(0, Math.min(100, Math.round(step.percent - delta)));
-
-        let moved = step.levelAfter !== step.levelBefore;
-        const atLimit =
-          (delta > 0 && step.levelAfter >= step.max) || (delta < 0 && step.levelAfter <= 0);
+        const volumePercent = Math.round(step.percent);
+        const moved = step.levelAfter !== step.levelBefore;
 
         /*
-         * The level is the only trustworthy evidence. Comparing percentages
-         * against a cached context volume produced false "maximum"/"minimum"
-         * replies whenever the context was one step stale — the rider heard the
-         * change but was told it was already at the limit.
-         *
-         * A provably unmoved, non-Bluetooth, non-limit step is retried once; that
-         * is now safe because we know nothing moved. Bluetooth is excluded: its
-         * absolute volume can change without the phone's index moving, so a
-         * blind retry would apply two steps for one command.
+         * Only report a limit when the stream really is at one. Otherwise, if
+         * the level did not move, the headset applied the change itself (or this
+         * audio stack simply does not report it), so the reply is the direction
+         * without a number.
          */
-        if (!moved && !atLimit && !step.bluetooth) {
-          log.info('volume step did not move; retrying once');
-          await sleep(VOLUME_RETRY_DELAY_MS);
-
-          const retry = await stepDeviceVolumePercent(delta);
-          if (retry) {
-            step = retry;
-            moved = retry.levelAfter !== retry.levelBefore;
-          }
-        }
-
-        const volumePercent = Math.round(step.percent);
-        let appliedDelta = volumePercent - previousPercent;
         let blockedReason: VolumeChange['blockedReason'];
         let unverified = false;
 
@@ -534,16 +506,7 @@ export class SpotifyPlaybackController {
           } else if (delta < 0 && step.levelBefore <= 0) {
             blockedReason = 'minimum';
           } else {
-            /*
-             * The key press was delivered but this audio stack does not report
-             * the resulting level (typical for a Bluetooth headset with absolute
-             * volume, and some OEMs hide it even on the speaker). The command is
-             * not blocked, so it must not be reported as such — say the
-             * direction and leave the number out instead of inventing a limit or
-             * a failure. The Ride Mode card still shows the raw levels.
-             */
             unverified = true;
-            appliedDelta = delta;
           }
         }
 
@@ -551,7 +514,7 @@ export class SpotifyPlaybackController {
         return {
           previousPercent,
           volumePercent,
-          appliedDelta,
+          appliedDelta: unverified ? delta : volumePercent - previousPercent,
           blockedReason,
           unverified,
           device: {

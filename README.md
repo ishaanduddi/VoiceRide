@@ -209,10 +209,12 @@ command vocabulary, which matters a lot for short, noisy utterances.
 
 Volume is the **phone's own media volume**, the same stream the hardware volume keys change — not
 Spotify's internal level. Spotify exposes no equivalent, and many devices answer its volume endpoint
-with `Restriction violated`, so the app drives `AudioManager.STREAM_MUSIC` through a small local
-native module (`modules/voice-system`). Steps are applied in **hardware units**, because phones only
-have 15–25 volume steps: adding "5%" to a percentage can round back to the step you are already on,
-which is why the reply used to repeat the same number.
+with `Restriction violated`, so the change is made with **`react-native-volume-manager`**: it sets the
+`music` stream with the system UI and the key-press sound (`playSound`), which is what makes Android
+route the change through a Bluetooth headset as well. Steps are applied in **hardware units**, because
+phones only have 15–25 volume steps: adding "5%" to a percentage can round back to the step you are
+already on, which is why the reply used to repeat the same number. The local `voice-system` module still
+supplies the step count, the audio route and the Ride Mode diagnostics.
 
 With a **Bluetooth headset** the phone cannot read the headset's absolute level back, so the reply is
 just *"Volume up."* / *"Volume down."* instead of a number — the key press was still delivered. A phone
