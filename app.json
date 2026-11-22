@@ -1,9 +1,9 @@
-{
+﻿{
   "expo": {
     "name": "VoiceRiders",
     "slug": "voiceriders",
     "scheme": "voiceriders",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -85,3 +85,4 @@
     "owner": "ishaanduddi"
   }
 }
+
