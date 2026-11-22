@@ -24,6 +24,7 @@ import { sessionStore } from '@/state/sessionStore';
 import { settingsStore } from '@/state/settingsStore';
 import { getDeviceVolumePercent, isDeviceVolumeAvailable } from '@/audio/deviceVolume';
 import { startBackgroundListening, stopBackgroundListening } from '@/voice/background/backgroundListening';
+import { pumpTimers } from '@/utils/async';
 import { toUserMessage } from '@/utils/errors';
 import { createLogger } from '@/utils/logger';
 import { audioConfig } from '@/config';
@@ -243,6 +244,9 @@ export function useRideMode(): UseRideModeResult {
 
   /** Every captured frame: feeds Adaptive Audio and the pre-roll buffer. */
   const handleFrame = useCallback((frame: MicrophoneFrame) => {
+    // setTimeout stops in the background; mic frames do not. See utils/async.
+    pumpTimers();
+
     if (!frame.speechActive) {
       adaptiveAudio.processAmbientNoise(frame.dbfs, frame.durationMs);
     }

@@ -1,7 +1,52 @@
 /** Small async helpers used across services. */
 
+/*
+ * Background-safe timers.
+ *
+ * React Native's Android timer manager stops firing `setTimeout` as soon as the
+ * activity is paused (JavaTimerManager.onHostPause) and only resumes on
+ * onHostResume. In Ride Mode with the app in the background, a command that
+ * awaited `sleep()` therefore never finished — e.g. "next song" waiting to
+ * confirm the track changed — and the busy flag blocked every later command
+ * until the rider opened the app again.
+ *
+ * Each deadline below is armed with `setTimeout` (the normal foreground path)
+ * AND registered here, so `pumpTimers()` can fire it from something that keeps
+ * running in the background: Ride Mode calls it on every microphone frame
+ * (~100 ms). Whichever happens first wins; the other is a no-op.
+ */
+const deadlines = new Set<{ at: number; fire: () => void }>();
+
+/** Calls `fn` after `ms` milliseconds, even while the app is backgrounded. Returns a cancel function. */
+export function after(ms: number, fn: () => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const entry = {
+    at: Date.now() + ms,
+    fire: () => {
+      if (!deadlines.delete(entry)) return;
+      if (timer) clearTimeout(timer);
+      fn();
+    },
+  };
+  deadlines.add(entry);
+  timer = setTimeout(entry.fire, ms);
+  return () => {
+    deadlines.delete(entry);
+    if (timer) clearTimeout(timer);
+  };
+}
+
+/** Fires every deadline that has passed. Safe to call as often as you like. */
+export function pumpTimers(now: number = Date.now()): void {
+  for (const entry of [...deadlines]) {
+    if (now >= entry.at) entry.fire();
+  }
+}
+
 export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => {
+    after(ms, resolve);
+  });
 }
 
 export class TimeoutError extends Error {
@@ -13,16 +58,16 @@ export class TimeoutError extends Error {
 
 /** Rejects if `promise` does not settle within `ms` milliseconds. */
 export async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let cancel: (() => void) | undefined;
   try {
     return await Promise.race([
       promise,
       new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new TimeoutError(ms)), ms);
+        cancel = after(ms, () => reject(new TimeoutError(ms)));
       }),
     ]);
   } finally {
-    if (timer) clearTimeout(timer);
+    cancel?.();
   }
 }
 
