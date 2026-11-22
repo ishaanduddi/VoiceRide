@@ -13,6 +13,7 @@ import {
 } from '@/audio/inputDevices';
 import { isCloudAsrConfigured, isSpotifyConfigured } from '@/config';
 import { applyAdaptiveAudioProfile, reloadAsrProvider } from '@/services/appServices';
+import { useAppUpdates } from '@/updates/useAppUpdates';
 import { useStore } from '@/state/observable';
 import { settingsStore, updateSettings } from '@/state/settingsStore';
 import { disconnectSpotifyAccount, sessionStore } from '@/state/sessionStore';
@@ -105,6 +106,8 @@ export default function SettingsScreen() {
       </Card>
 
       <SpeechEngineCard />
+
+      <UpdatesCard />
 
       <Card title="Configuration">
         <Row label="Spotify client id" value={isSpotifyConfigured() ? 'configured' : 'missing'} />
@@ -292,6 +295,72 @@ function Segmented<T extends number | string>({ options, selected, onSelect }: S
         );
       })}
     </View>
+  );
+}
+
+/**
+ * OTA (JavaScript) updates + APK (native) updates.
+ *
+ * OTA is configured in `app.json` (`updates.url`, `checkAutomatically: ON_LOAD`),
+ * so a published `eas update --channel preview` reaches every installed APK and
+ * is applied on the next launch. Native changes still need a new APK, which is
+ * why the latest GitHub release is checked and offered here.
+ */
+function UpdatesCard() {
+  const updates = useAppUpdates();
+
+  const otaLabel = !updates.otaEnabled
+    ? 'not available in this build'
+    : updates.otaPending
+      ? 'downloaded — restart to apply'
+      : updates.otaChecking
+        ? 'checking…'
+        : updates.otaAvailable
+          ? 'update available'
+          : 'up to date';
+
+  const apkLabel = updates.releaseChecking
+    ? 'checking…'
+    : updates.release
+      ? `${updates.release.tag}${updates.releaseIsNewer ? ' — new version' : ' — up to date'}`
+      : 'not published yet';
+
+  return (
+    <Card
+      title="App updates"
+      subtitle="Install once. JavaScript fixes arrive over the air; native changes come as a new APK."
+    >
+      <Row
+        label="Installed"
+        value={`${updates.installedVersion}${
+          updates.installedBuild ? ` (build ${updates.installedBuild})` : ''
+        }`}
+      />
+      <Row label="Over-the-air" value={otaLabel} />
+      <Row label="Latest APK" value={apkLabel} />
+
+      {updates.otaError ? <Text style={styles.note}>{updates.otaError}</Text> : null}
+      {updates.releaseError ? <Text style={styles.note}>{updates.releaseError}</Text> : null}
+
+      <Button
+        title="Check for updates"
+        variant="secondary"
+        loading={updates.otaChecking || updates.releaseChecking}
+        onPress={() => void updates.checkForUpdates()}
+      />
+
+      {updates.otaPending ? (
+        <Button title="Restart to apply update" onPress={() => void updates.applyOtaUpdate()} />
+      ) : null}
+
+      {updates.release && updates.releaseIsNewer ? (
+        <Button
+          title={`Download ${updates.release.tag} APK`}
+          variant="secondary"
+          onPress={() => void updates.downloadApk()}
+        />
+      ) : null}
+    </Card>
   );
 }
 

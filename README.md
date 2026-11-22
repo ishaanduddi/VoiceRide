@@ -120,6 +120,12 @@ npx eas-cli@latest build --profile preview --platform android
 EAS prints a progress URL and, at the end, a **download link / QR code** for the `.apk`. Open it on the
 phone and allow "install from unknown sources".
 
+Once that APK is installed, **updates no longer need a reinstall**: JavaScript/asset changes are
+delivered with `eas update --channel preview`, and native changes are published as a new APK on GitHub
+Releases (the app checks and offers the download in Settings → App updates). See
+**[docs/RELEASING.md](docs/RELEASING.md)** for the full release loop, versioning rules and the GitHub
+release command.
+
 > **Why step 2 matters:** `.env` is git-ignored, so it is *not* uploaded to the build. Build-time
 > `EXPO_PUBLIC_*` values must come from EAS. Either add them to `eas.json`:
 >
