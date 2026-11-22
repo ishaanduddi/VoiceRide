@@ -37,7 +37,7 @@ updates. Install one build from this commit onwards and OTA is live.
 ## 1. Publish a JavaScript update (no reinstall)
 
 ```powershell
-npx eas-cli@latest update --channel preview --message "fix: volume step"
+npx eas-cli@latest update --channel preview --environment preview --message "fix: volume step"
 ```
 
 Every installed preview APK with the same runtime version downloads it on the
