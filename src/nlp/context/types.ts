@@ -19,6 +19,7 @@ export interface VolumeCommandRecord {
   /** Raw AudioManager mode (0 = normal, 3 = communication). */
   audioMode?: number;
   method?: string;
+  trace?: string;
   outcome: 'applied' | 'maximum' | 'minimum' | 'headset';
 }
 

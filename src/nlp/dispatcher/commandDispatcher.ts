@@ -68,6 +68,7 @@ function volumeRecord(change: VolumeChange, delta: number): VolumeCommandRecord 
     voiceRoute: change.device?.voiceRoute,
     audioMode: change.device?.audioMode,
     method: change.device?.method,
+    trace: change.device?.trace,
     outcome: change.blockedReason ?? (change.unverified ? 'headset' : 'applied'),
   };
 }

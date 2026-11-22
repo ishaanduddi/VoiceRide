@@ -372,6 +372,9 @@ function VolumeCard() {
         }
       />
 
+      <Row label="Voice trace" value={lastVolume?.trace ?? '—'} />
+      <Row label="Test trace" value={lastTest?.trace ?? '—'} />
+
       <View style={styles.testButtons}>
         <Button
           title="Test: one step louder"

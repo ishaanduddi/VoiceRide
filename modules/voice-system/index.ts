@@ -65,6 +65,8 @@ export interface VolumeStepResult {
   audioMode?: number;
   /** Which call moved the level: set, adjust, set+ui, or none. */
   method?: string;
+  /** Every attempt and the phone state around it, for the diagnostics card. */
+  trace?: string;
 }
 
 export interface VoiceSystemSubscription {

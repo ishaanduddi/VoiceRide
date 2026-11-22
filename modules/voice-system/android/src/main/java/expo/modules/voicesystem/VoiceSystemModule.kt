@@ -137,23 +137,64 @@ class VoiceSystemModule : Module() {
       },
     )
 
+    /*
+     * Last resort: the path the hardware keys take. Two calls, because the
+     * first one may only open the volume panel.
+     */
+    val suggested: Pair<String, () -> Unit> = "suggested" to {
+      audio.adjustSuggestedStreamVolume(direction, AudioManager.STREAM_MUSIC, AudioManager.FLAG_SHOW_UI)
+      if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) == before) {
+        Thread.sleep(150)
+        audio.adjustSuggestedStreamVolume(direction, AudioManager.STREAM_MUSIC, AudioManager.FLAG_SHOW_UI)
+      }
+    }
+
     var after = before
     var method = "none"
 
+    /*
+     * On-screen trace of every attempt and the phone state around it. The
+     * button and a voice command run this same function, yet the phone only
+     * applies it for the button, so the state at call time is the evidence.
+     * Format: "set=2 adjust=2 … | mode=0 music=1 ring=2 dnd=1 late=2".
+     */
+    val trace = StringBuilder()
+
     if (target != before) {
-      for ((name, attempt) in attempts) {
-        try {
-          attempt()
-        } catch (error: SecurityException) {
-          android.util.Log.w("VoiceSystem", "volume $name refused", error)
+      // Two rounds: voice commands sometimes succeed, so the refusal is
+      // transient. The second round runs after a short pause.
+      rounds@ for (round in 0 until 2) {
+        if (round > 0) {
+          Thread.sleep(300)
+          trace.append("| retry ")
         }
-        after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-        if (after != before) {
-          method = name
-          break
+        for ((name, attempt) in attempts + suggested) {
+          try {
+            attempt()
+          } catch (error: Exception) {
+            android.util.Log.w("VoiceSystem", "volume $name refused", error)
+            trace.append("$name!${error.javaClass.simpleName} ")
+          }
+          after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+          trace.append("$name=$after ")
+          if (after != before) {
+            method = if (round > 0) "$name(retry)" else name
+            break@rounds
+          }
         }
       }
     }
+
+    val dnd = (appContext.reactContext ?: applicationContext)
+      ?.getSystemService(Context.NOTIFICATION_SERVICE)
+      ?.let { (it as? android.app.NotificationManager)?.currentInterruptionFilter }
+    Thread.sleep(400)
+    val late = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+    trace.append(
+      "| mode=${audio.mode} music=${if (audio.isMusicActive) 1 else 0} " +
+        "ring=${audio.ringerMode} dnd=${dnd ?: "?"} late=$late " +
+        "thread=${Thread.currentThread().name.take(16)}"
+    )
 
     /*
      * While the microphone records through a Bluetooth headset, Android can keep
@@ -187,7 +228,7 @@ class VoiceSystemModule : Module() {
     android.util.Log.i(
       "VoiceSystem",
       "volume step delta=$delta before=$before after=$after max=$max method=$method " +
-        "bluetooth=$bluetooth voiceRoute=$voiceRouteActive"
+        "bluetooth=$bluetooth voiceRoute=$voiceRouteActive $trace"
     )
 
     return mapOf(
@@ -198,7 +239,8 @@ class VoiceSystemModule : Module() {
       "bluetooth" to bluetooth,
       "voiceRoute" to voiceRouteActive,
       "audioMode" to audio.mode,
-      "method" to method
+      "method" to method,
+      "trace" to trace.toString().trim()
     )
   }
 
