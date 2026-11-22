@@ -23,6 +23,10 @@ import { Linking } from 'react-native';
 const GITHUB_REPO = 'ishaanduddi/VoiceRide';
 const LATEST_RELEASE_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 
+/** GitHub allows 60 anonymous requests per hour; cache for 5 minutes. */
+const RELEASE_CACHE_MS = 5 * 60 * 1000;
+let cachedRelease: { release?: ReleaseInfo; at: number } | undefined;
+
 export interface ReleaseInfo {
   tag: string;
   pageUrl: string;
@@ -90,7 +94,13 @@ export function useAppUpdates(): AppUpdates {
   const installedVersion = Constants.expoConfig?.version ?? '0.0.0';
   const installedBuild = Constants.nativeBuildVersion ?? undefined;
 
-  const fetchLatestRelease = useCallback(async () => {
+  const fetchLatestRelease = useCallback(async (force = false) => {
+    if (!force && cachedRelease && Date.now() - cachedRelease.at < RELEASE_CACHE_MS) {
+      setRelease(cachedRelease.release);
+      setReleaseChecking(false);
+      return;
+    }
+
     setReleaseChecking(true);
     setReleaseError(undefined);
 
@@ -103,13 +113,16 @@ export function useAppUpdates(): AppUpdates {
       const json = (await response.json()) as GithubRelease;
       if (!json.tag_name || !json.html_url) throw new Error('No release published yet');
 
-      setRelease({
+      const next: ReleaseInfo = {
         tag: json.tag_name,
         pageUrl: json.html_url,
         apkUrl: json.assets?.find((asset) => asset.name?.toLowerCase().endsWith('.apk'))
           ?.browser_download_url,
         publishedAt: json.published_at,
-      });
+      };
+
+      cachedRelease = { release: next, at: Date.now() };
+      setRelease(next);
     } catch (error) {
       setReleaseError(
         error instanceof Error ? error.message : 'Could not reach the release page',
@@ -141,7 +154,7 @@ export function useAppUpdates(): AppUpdates {
       }
     }
 
-    await fetchLatestRelease();
+    await fetchLatestRelease(true);
   }, [fetchLatestRelease]);
 
   const applyOtaUpdate = useCallback(async () => {

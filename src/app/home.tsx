@@ -7,6 +7,7 @@ import { Card } from '@/components/Card';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { SettingToggle } from '@/components/SettingToggle';
 import { StatusPill, type PillTone } from '@/components/StatusPill';
+import { UpdateBanner } from '@/components/UpdateBanner';
 import { useStore } from '@/state/observable';
 import { libraryStore, loadPlaylists } from '@/state/libraryStore';
 import { sessionStore } from '@/state/sessionStore';
@@ -43,6 +44,8 @@ export default function HomeScreen() {
       </View>
 
       <Banner tone="error" message={library.playlistsError ?? library.tracksError ?? session.error} />
+
+      <UpdateBanner />
 
       {session.product === 'free' ? (
         <Banner
