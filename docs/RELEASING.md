@@ -79,7 +79,36 @@ must uninstall and reinstall.
 
 ---
 
-## 3. First-time installation for users
+## 3. When EAS cloud builds are unavailable (free-plan quota)
+
+Local builds do not use the EAS build quota. Prerequisites: **JDK 17**, the
+**Android SDK** (platform 36, build-tools 36.0.0, CMake 3.22.1, NDK 27.x) and the
+**same keystore** as the published APK (otherwise Android refuses to install over
+the old app).
+
+```powershell
+# one-time: export the EAS-managed keystore (or use eas credentials interactively)
+# eas credentials -> android -> Keystore -> download
+
+$env:JAVA_HOME   = "C:\path\to\jdk-17"
+$env:ANDROID_HOME = "C:\Android"
+$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+
+npx expo prebuild -p android --clean --no-install
+
+cd android
+.\gradlew.bat assembleRelease `
+  "-Pandroid.injected.signing.store.file=C:\path\to\release.jks" `
+  "-Pandroid.injected.signing.store.password=..." `
+  "-Pandroid.injected.signing.key.alias=..." `
+  "-Pandroid.injected.signing.key.password=..."
+```
+
+The APK is at `android/app/build/outputs/apk/release/app-release.apk`.
+Publish it with `gh release create vX.Y.Z ...` as usual. Keep the keystore and
+passwords out of git.
+
+## 4. First-time installation for users
 
 1. Open the GitHub release page and download the `.apk`.
 2. Android warns about installing from an unknown source → allow it for that
