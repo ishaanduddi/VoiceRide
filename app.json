@@ -3,7 +3,7 @@
     "name": "VoiceRiders",
     "slug": "voiceriders",
     "scheme": "voiceriders",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "runtimeVersion": {
       "policy": "appVersion"
     },
