@@ -53,3 +53,6 @@ ml/.venv*/
 
 # local bundle-verification output (see docs/ARCHITECTURE.md)
 .expo-export-check/
+
+# native build output from local Gradle builds
+/modules/*/android/build/
