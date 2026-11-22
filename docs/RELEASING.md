@@ -108,6 +108,18 @@ The APK is at `android/app/build/outputs/apk/release/app-release.apk`.
 Publish it with `gh release create vX.Y.Z ...` as usual. Keep the keystore and
 passwords out of git.
 
+> **OTA channel on local builds:** EAS injects the profile `channel` during the
+> build; a plain Gradle build does not. `app.json` therefore sets
+> `updates.requestHeaders["expo-channel-name"] = "preview"`. Change it to
+> `production` for a production build (or remove it when building with EAS,
+> which injects the channel itself). Verify the built APK contains
+> `expo.modules.updates.UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY`.
+>
+> **Secrets in `.env`:** `EXPO_PUBLIC_*` values are embedded in the bundle.
+> Cloud builds only receive `eas.json`'s `env`; a local build reads `.env`. Use a
+> gitignored `.env.local` to blank anything that must not ship (this repo blanks
+> the unused `EXPO_PUBLIC_ASR_API_KEY`).
+
 ## 4. First-time installation for users
 
 1. Open the GitHub release page and download the `.apk`.
