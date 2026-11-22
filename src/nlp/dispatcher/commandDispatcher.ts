@@ -20,8 +20,6 @@ const log = createLogger('nlp:dispatcher');
 export interface DispatchDeps {
   controller: SpotifyPlaybackController;
   context: AppContextManager;
-  /** Percentage points applied by a voice volume command. */
-  volumeStepPercent: number;
 }
 
 export interface DispatchOutcome {
@@ -77,7 +75,7 @@ export async function dispatchInterpretation(
   interpretation: Interpretation,
   deps: DispatchDeps,
 ): Promise<DispatchOutcome> {
-  const { controller, context, volumeStepPercent } = deps;
+  const { controller, context } = deps;
   const intent = interpretation.prediction.intent;
 
   const mark = (extra: Partial<AppContext> = {}): void => {
@@ -109,25 +107,23 @@ export async function dispatchInterpretation(
     switch (intent) {
       case 'INCREASE_VOLUME': {
         /*
-         * "increase volume by 5 percent" overrides the Settings step; without an
-         * explicit amount the configured step applies. `changeVolumeBy` makes
-         * exactly the same native call as the Ride Mode test buttons.
+         * A fixed, predefined step: one hardware key press. No percentage and
+         * no Settings value — the native module moves exactly one step, the
+         * same call the Ride Mode test button makes.
          */
-        const step = interpretation.entities.volumePercent ?? volumeStepPercent;
-        const change = await controller.changeVolumeBy(step, 'voice');
+        const change = await controller.adjustVolume(1, 'voice');
         mark({
           volumePercent: change.volumePercent,
-          lastVolumeCommand: volumeRecord(change, step),
+          lastVolumeCommand: volumeRecord(change, 1),
         });
         return { ok: true, intent, spoken: volumeReply(change) };
       }
 
       case 'DECREASE_VOLUME': {
-        const step = interpretation.entities.volumePercent ?? volumeStepPercent;
-        const change = await controller.changeVolumeBy(-step, 'voice');
+        const change = await controller.adjustVolume(-1, 'voice');
         mark({
           volumePercent: change.volumePercent,
-          lastVolumeCommand: volumeRecord(change, -step),
+          lastVolumeCommand: volumeRecord(change, -1),
         });
         return { ok: true, intent, spoken: volumeReply(change) };
       }

@@ -200,29 +200,25 @@ command vocabulary, which matters a lot for short, noisy utterances.
 | "resume" / "continue playing" / "play" | `RESUME`, `PLAY` | resume playback |
 | "next song" / "skip this song" / "play the next track" | `NEXT_SONG` | skip forward |
 | "previous song" / "go back" | `PREVIOUS_SONG` | skip back |
-| "increase volume" / "make it louder" / "turn the music up" | `INCREASE_VOLUME` | **phone** media volume + step |
-| "decrease volume" / "make it quieter" / "turn the music down" | `DECREASE_VOLUME` | **phone** media volume − step |
-| "increase volume by 10 percent" | `INCREASE_VOLUME` | phone media volume + that amount instead of the Settings step |
+| "increase volume" / "make it louder" / "turn the music up" | `INCREASE_VOLUME` | **phone** media volume + one hardware step |
+| "decrease volume" / "make it quieter" / "turn the music down" | `DECREASE_VOLUME` | **phone** media volume − one hardware step |
 | "play believer" / "play song believer" / "play thunder" | `PLAY_SONG` | search Spotify and play the most popular match |
 | "play believer by imagine dragons" | `PLAY_SONG` | play that artist's version |
 | anything else | `UNKNOWN` | *"Sorry, I didn't catch that."* |
 
 Volume is the **phone's own media volume**, the same stream the hardware volume keys change — not
 Spotify's internal level. Spotify exposes no equivalent, and many devices answer its volume endpoint
-with `Restriction violated`, so the change is made with **`react-native-volume-manager`**: it sets the
-`music` stream with the system UI and the key-press sound (`playSound`), which is what makes Android
-route the change through a Bluetooth headset as well. Steps are applied in **hardware units**, because
-phones only have 15–25 volume steps: adding "5%" to a percentage can round back to the step you are
-already on, which is why the reply used to repeat the same number. The local `voice-system` module still
-supplies the step count, the audio route and the Ride Mode diagnostics.
+with `Restriction violated`, so the app drives `AudioManager` through a small local native module
+(`modules/voice-system`). A command moves **exactly one hardware step** (`adjustStreamVolume`, the
+same call a volume key makes) — there is no percentage and no Settings value. Ride Mode's
+**one step louder / one step quieter** buttons call the same function, so a spoken command and a
+button press are literally the same operation.
 
 With a **Bluetooth headset** the phone cannot read the headset's absolute level back, so the reply is
 just *"Volume up."* / *"Volume down."* instead of a number — the key press was still delivered. A phone
 already at its own maximum says so, rather than blaming the headset. Ride Mode → **Volume** shows the
-hardware step, audio route, fixed-volume and permission state, plus **louder/quieter test buttons that
-make exactly the same native call as a voice command** and a *Last voice command* row showing the
-hardware step the command produced. "Increase volume by 10 percent" overrides the Settings step for
-that one command.
+hardware step, audio route, fixed-volume and permission state, the level the last test/command reached,
+and whether the voice (SCO) route was active at the time.
 
 Songs are played **by name**, inside a real context. With a bare title the app asks Spotify for matches
 and plays the most popular one (Spotify exposes `popularity`, not play counts); adding an artist —

@@ -10,9 +10,9 @@ import { NoiseMeter } from '@/components/NoiseMeter';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { StatusPill, type PillTone } from '@/components/StatusPill';
 import {
+  adjustDeviceVolume,
   getVolumeDiagnostics,
   isDeviceVolumeAvailable,
-  stepDeviceVolumePercent,
   type VolumeDiagnostics,
   type VolumeStepResult,
 } from '@/audio/deviceVolume';
@@ -242,8 +242,8 @@ export default function RideModeScreen() {
       <Button title="Back to Home" variant="ghost" onPress={() => router.replace('/home')} />
 
       <Text style={styles.footnote}>
-        Settings hold {settings.confidenceThreshold.toFixed(2)} confidence threshold and a{' '}
-        {settings.volumeStepPercent}-point volume step. Change them before you ride.
+        Settings hold the {settings.confidenceThreshold.toFixed(2)} confidence threshold. Change it
+        before you ride.
       </Text>
     </ScreenContainer>
   );
@@ -275,7 +275,6 @@ function VolumeCard() {
   const [lastTest, setLastTest] = useState<VolumeStepResult | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const appContext = useAppContext();
-  const settings = useStore(settingsStore);
   const lastVolume = appContext.lastVolumeCommand;
 
   useEffect(() => {
@@ -296,15 +295,14 @@ function VolumeCard() {
   }, []);
 
   /**
-   * Exactly the call a voice command makes (`stepDeviceVolumePercent`). The two
-   * buttons exist so the rider can prove the hardware path works without
-   * speaking, and so a failure can be attributed to the microphone/ASR rather
-   * than to the audio API.
+   * Exactly the call a voice command makes (`adjustDeviceVolume`): one hardware
+   * step, +1 or -1. The buttons exist so the rider can prove the hardware path
+   * works without speaking.
    */
   const test = async (direction: 1 | -1) => {
     setBusy(true);
     try {
-      const result = await stepDeviceVolumePercent(direction * settings.volumeStepPercent);
+      const result = await adjustDeviceVolume(direction);
       if (result) {
         setLastTest(result);
         contextManager.setState({ volumePercent: Math.round(result.percent) });
@@ -350,7 +348,7 @@ function VolumeCard() {
         label="Last voice command"
         value={
           lastVolume
-            ? `${lastVolume.delta > 0 ? '+' : ''}${lastVolume.delta}% · ` +
+            ? `${lastVolume.delta > 0 ? '+1' : '-1'} step · ` +
               (lastVolume.levelBefore !== undefined
                 ? `step ${lastVolume.levelBefore} → ${lastVolume.levelAfter ?? '?'}`
                 : `now step ${lastVolume.levelAfter ?? '?'}`) +
@@ -374,13 +372,13 @@ function VolumeCard() {
 
       <View style={styles.testButtons}>
         <Button
-          title={`Test: +${settings.volumeStepPercent}% louder`}
+          title="Test: one step louder"
           variant="secondary"
           loading={busy}
           onPress={() => void test(1)}
         />
         <Button
-          title={`Test: −${settings.volumeStepPercent}% quieter`}
+          title="Test: one step quieter"
           variant="secondary"
           loading={busy}
           onPress={() => void test(-1)}
@@ -388,9 +386,8 @@ function VolumeCard() {
       </View>
 
       <Text style={styles.footnote}>
-        These two buttons make exactly the same call a voice command makes, using the volume step
-        from Settings. “Last voice command” shows what a spoken command actually did. You can also
-        type “increase volume” in the command box to test the same path without the microphone.
+        Both buttons make exactly the same call a voice command makes: one hardware volume step.
+        “Last test” and “Last voice command” show the level the phone actually reached.
       </Text>
     </Card>
   );

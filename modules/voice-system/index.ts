@@ -81,6 +81,12 @@ export interface VoiceSystemNativeModule {
    * Resolves with the raw levels around the change (see `VolumeStepResult`).
    */
   stepMediaVolume(deltaPercent: number): Promise<VolumeStepResult>;
+  /**
+   * Moves media volume by exactly one hardware step in `direction`
+   * (1 = up, -1 = down). This is the fixed, predefined amount used by voice
+   * commands and the Ride Mode test buttons.
+   */
+  adjustMediaVolume(direction: number): Promise<VolumeStepResult>;
   /** Whether sound is going out over Bluetooth right now. */
   isBluetoothAudioActive(): Promise<boolean>;
   /** Raw volume state, for the on-device diagnostics card. */

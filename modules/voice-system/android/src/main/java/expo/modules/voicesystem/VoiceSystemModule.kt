@@ -88,6 +88,104 @@ class VoiceSystemModule : Module() {
             device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER))
     }
 
+  /**
+   * Applies `magnitude` volume key presses and returns what actually happened.
+   *
+   * Shared by `stepMediaVolume(percent)` and `adjustMediaVolume(direction)` so
+   * there is literally one implementation of "change the phone's volume".
+   */
+  private fun applyVolumeStep(
+    audio: AudioManager,
+    direction: Int,
+    magnitude: Int,
+  ): Map<String, Any?> {
+    val max = maxVolume(audio)
+    val before = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+    val delta = if (direction == AudioManager.ADJUST_RAISE) magnitude else -magnitude
+
+    for (index in 0 until magnitude) {
+      try {
+        /*
+         * FLAG_SHOW_UI makes this behave like an actual hardware key press:
+         * some OEM audio stacks (vivo/OriginOS included) route a silent
+         * programmatic change differently from a user-initiated one.
+         * FLAG_PLAY_SOUND additionally plays the system feedback through the
+         * active route, which forces the audio HAL to apply it.
+         */
+        audio.adjustStreamVolume(
+          AudioManager.STREAM_MUSIC,
+          direction,
+          AudioManager.FLAG_SHOW_UI or AudioManager.FLAG_PLAY_SOUND
+        )
+      } catch (error: SecurityException) {
+        android.util.Log.w("VoiceSystem", "volume adjust refused", error)
+        break
+      }
+    }
+
+    var after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+
+    if (after == before) {
+      // Some OEM frameworks ignore the adjust call for third-party apps.
+      val target = (before + delta).coerceIn(0, max)
+      try {
+        audio.setStreamVolume(
+          AudioManager.STREAM_MUSIC,
+          target,
+          AudioManager.FLAG_SHOW_UI or AudioManager.FLAG_PLAY_SOUND
+        )
+        after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+      } catch (error: SecurityException) {
+        android.util.Log.w("VoiceSystem", "volume set refused", error)
+      }
+    }
+
+    /*
+     * While the microphone records through a Bluetooth headset, Android can keep
+     * music on the voice (SCO) route. Its level is STREAM_VOICE_CALL, not
+     * STREAM_MUSIC, so a command issued with the mic open changes a stream the
+     * rider cannot hear. Step the call stream too while that route is active; on
+     * normal media routing this branch is skipped.
+     */
+    @Suppress("DEPRECATION")
+    val voiceRouteActive =
+      audio.isBluetoothScoOn || audio.mode == AudioManager.MODE_IN_COMMUNICATION
+
+    if (voiceRouteActive) {
+      val callMax = audio.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL).coerceAtLeast(1)
+      val callBefore = audio.getStreamVolume(AudioManager.STREAM_VOICE_CALL)
+      val callTarget = (callBefore + delta).coerceIn(0, callMax)
+
+      try {
+        audio.setStreamVolume(
+          AudioManager.STREAM_VOICE_CALL,
+          callTarget,
+          AudioManager.FLAG_SHOW_UI
+        )
+      } catch (error: SecurityException) {
+        android.util.Log.w("VoiceSystem", "call volume set refused", error)
+      }
+    }
+
+    val bluetooth = isBluetoothOutput(audio)
+
+    android.util.Log.i(
+      "VoiceSystem",
+      "volume step delta=$delta before=$before after=$after max=$max " +
+        "bluetooth=$bluetooth voiceRoute=$voiceRouteActive"
+    )
+
+    return mapOf(
+      "percent" to (after * 100.0) / max,
+      "levelBefore" to before,
+      "levelAfter" to after,
+      "max" to max,
+      "bluetooth" to bluetooth,
+      "voiceRoute" to voiceRouteActive,
+      "audioMode" to audio.mode
+    )
+  }
+
   /** Inputs that are actually microphones (headset, USB, Bluetooth), best first. */
   private fun preferredInputTypes(): List<Int> {
     val types = mutableListOf(
@@ -214,99 +312,21 @@ class VoiceSystemModule : Module() {
      */
     AsyncFunction("stepMediaVolume") { deltaPercent: Double ->
       val audio = audioManager() ?: return@AsyncFunction emptyMap<String, Any?>()
-      val max = maxVolume(audio)
-      val before = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-
       val direction = if (deltaPercent >= 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
-      val magnitude = max(1, (kotlin.math.abs(deltaPercent) / 100.0 * max).roundToInt())
+      val magnitude = max(1, (kotlin.math.abs(deltaPercent) / 100.0 * maxVolume(audio)).roundToInt())
+      applyVolumeStep(audio, direction, magnitude)
+    }
 
-      for (index in 0 until magnitude) {
-        try {
-          /*
-           * FLAG_SHOW_UI makes this behave like an actual hardware key press:
-           * some OEM audio stacks (vivo/OriginOS included) route a silent
-           * programmatic change differently from a user-initiated one, and a
-           * Bluetooth headset only follows the user-initiated path reliably.
-           * FLAG_PLAY_SOUND additionally plays the system's volume feedback
-           * through the active route, which forces the audio HAL to apply it.
-           */
-          audio.adjustStreamVolume(
-            AudioManager.STREAM_MUSIC,
-            direction,
-            AudioManager.FLAG_SHOW_UI or AudioManager.FLAG_PLAY_SOUND
-          )
-        } catch (error: SecurityException) {
-          android.util.Log.w("VoiceSystem", "volume adjust refused", error)
-          break
-        }
-      }
-
-      var after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-
-      if (after == before) {
-        // Some OEM frameworks ignore the adjust call for third-party apps.
-        val target = (before + (if (deltaPercent >= 0) magnitude else -magnitude))
-          .coerceIn(0, max)
-
-        try {
-          audio.setStreamVolume(
-            AudioManager.STREAM_MUSIC,
-            target,
-            AudioManager.FLAG_SHOW_UI or AudioManager.FLAG_PLAY_SOUND
-          )
-          after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-        } catch (error: SecurityException) {
-          android.util.Log.w("VoiceSystem", "volume set refused", error)
-        }
-      }
-
-      /*
-       * While the microphone records through a Bluetooth headset, Android can
-       * keep music on the voice (SCO) route. That route's level is
-       * STREAM_VOICE_CALL, not STREAM_MUSIC, so a command issued with the mic
-       * open changes a stream the rider cannot hear — which is exactly the
-       * "the button works but the command does not" symptom. Adjust the call
-       * stream too while that route is active; on normal media routing this
-       * branch is skipped.
-       */
-      @Suppress("DEPRECATION")
-      val voiceRouteActive =
-        audio.isBluetoothScoOn || audio.mode == AudioManager.MODE_IN_COMMUNICATION
-
-      if (voiceRouteActive) {
-        val callMax = audio.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL).coerceAtLeast(1)
-        val callBefore = audio.getStreamVolume(AudioManager.STREAM_VOICE_CALL)
-        val callTarget = (callBefore + (if (deltaPercent >= 0) magnitude else -magnitude))
-          .coerceIn(0, callMax)
-
-        try {
-          audio.setStreamVolume(
-            AudioManager.STREAM_VOICE_CALL,
-            callTarget,
-            AudioManager.FLAG_SHOW_UI
-          )
-        } catch (error: SecurityException) {
-          android.util.Log.w("VoiceSystem", "call volume set refused", error)
-        }
-      }
-
-      val bluetooth = isBluetoothOutput(audio)
-
-      android.util.Log.i(
-        "VoiceSystem",
-        "step delta=$deltaPercent before=$before after=$after max=$max " +
-          "bluetooth=$bluetooth voiceRoute=$voiceRouteActive"
-      )
-
-      mapOf(
-        "percent" to (after * 100.0) / max,
-        "levelBefore" to before,
-        "levelAfter" to after,
-        "max" to max,
-        "bluetooth" to bluetooth,
-        "voiceRoute" to voiceRouteActive,
-        "audioMode" to audio.mode
-      )
+    /**
+     * One hardware volume step, exactly what a volume key press does.
+     *
+     * Voice commands and the Ride Mode test buttons use this, so the amount is
+     * fixed and predefined instead of being derived from a percentage.
+     */
+    AsyncFunction("adjustMediaVolume") { direction: Int ->
+      val audio = audioManager() ?: return@AsyncFunction emptyMap<String, Any?>()
+      val key = if (direction >= 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
+      applyVolumeStep(audio, key, 1)
     }
 
     /**

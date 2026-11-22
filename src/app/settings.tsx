@@ -27,7 +27,6 @@ import {
   refreshModelStatus,
 } from '@/voice/asr';
 
-const VOLUME_STEPS = [1, 5, 10];
 const CONFIDENCE_OPTIONS: { label: string; value: number }[] = [
   { label: 'Lenient 0.50', value: 0.5 },
   { label: 'Default 0.60', value: 0.6 },
@@ -74,15 +73,13 @@ export default function SettingsScreen() {
 
       <MicrophoneCard />
 
-      <Card title="Volume step" subtitle="Percentage points per “increase/decrease volume”.">
-        <Segmented
-          options={VOLUME_STEPS.map((value) => ({ label: `${value}`, value }))}
-          selected={settings.volumeStepPercent}
-          onSelect={(value) => void updateSettings({ volumeStepPercent: value })}
-        />
+      <Card
+        title="Volume"
+        subtitle="“Increase volume” and “decrease volume” always move one hardware step — the same step the volume keys use."
+      >
         <Text style={styles.note}>
-          Say it explicitly to override this once: “increase volume by 10 percent”. Ride Mode has
-          separate louder/quieter test buttons that make exactly the same call as a voice command.
+          There is no percentage to configure. Ride Mode has separate louder/quieter test buttons
+          that make exactly the same call as a voice command.
         </Text>
       </Card>
 

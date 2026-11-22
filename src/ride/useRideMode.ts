@@ -490,7 +490,6 @@ export function useRideMode(): UseRideModeResult {
     const outcome = await dispatchInterpretation(interpretation, {
       controller: playbackController,
       context: contextManager,
-      volumeStepPercent: settingsStore.getState().volumeStepPercent,
     });
 
     setState((previous) => ({

@@ -5,7 +5,7 @@ import type { Intent } from '../types';
 /** Result of the most recent volume command, for the Ride Mode diagnostics card. */
 export interface VolumeCommandRecord {
   at: number;
-  /** Percentage points requested (+5, -5). */
+  /** Direction of the step: +1 louder, -1 quieter. */
   delta: number;
   /** Hardware steps before/after, when the phone could report them. */
   levelBefore?: number;

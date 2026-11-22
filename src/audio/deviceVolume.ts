@@ -68,21 +68,19 @@ export async function getDeviceVolumeSteps(): Promise<number | undefined> {
 }
 
 /**
- * Moves the phone's media volume by `deltaPercent`, by at least one hardware
- * step, and reports the raw levels around the change.
+ * One hardware volume step, in `direction` (1 = up, -1 = down).
  *
- * Phones quantise volume to 15-25 steps, so adding 5% can round to the step it is
- * already on — "increase volume" then repeats the same number and nothing is
- * audible. Stepping in hardware units is the only way to guarantee a change, and
- * the returned levels are what make "maximum" a fact rather than a guess.
+ * This is the fixed, predefined amount: the same call a volume key press makes.
+ * Voice commands and the Ride Mode test buttons both use it, so neither depends
+ * on a percentage or a Settings value.
  */
-export async function stepDeviceVolumePercent(
-  deltaPercent: number,
+export async function adjustDeviceVolume(
+  direction: 1 | -1,
 ): Promise<VolumeStepResult | undefined> {
   if (!native) return undefined;
 
   try {
-    const result = await native.stepMediaVolume(deltaPercent);
+    const result = await native.adjustMediaVolume(direction);
     if (!result || typeof result.percent !== 'number' || !Number.isFinite(result.percent)) {
       return undefined;
     }

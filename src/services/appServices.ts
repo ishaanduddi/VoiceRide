@@ -56,7 +56,6 @@ export const voiceController = new VoiceController({
     dispatchInterpretation(interpretation, {
       controller: playbackController,
       context: contextManager,
-      volumeStepPercent: settingsStore.getState().volumeStepPercent,
     }),});
 
 /** Rebuilds the ASR provider (e.g. after a model download or settings change). */

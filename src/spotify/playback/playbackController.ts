@@ -7,10 +7,10 @@
  */
 
 import {
+  adjustDeviceVolume,
   getDeviceVolumePercent,
   isDeviceVolumeAvailable,
   setDeviceVolumePercent,
-  stepDeviceVolumePercent,
 } from '@/audio/deviceVolume';
 import { sleep } from '@/utils/async';
 import { AppError, NoActiveDeviceError, SpotifyApiError } from '@/utils/errors';
@@ -476,22 +476,21 @@ export class SpotifyPlaybackController {
     );
   }
 
-  /** Relative volume change, e.g. +5 or -5 percentage points. */
-  async changeVolumeBy(delta: number, source: VolumeSource = 'voice'): Promise<VolumeChange> {
-    /*
-     * One simple step on the phone's music stream (see audio/deviceVolume.ts):
-     * read the level, move by whole hardware steps, set it with the system UI
-     * and the key-press sound. Phones only have 15-25 steps, so percentage maths
-     * would often round back to the current level.
-     */
+  /**
+   * One predefined hardware step up or down.
+   *
+   * `direction` is 1 (louder) or -1 (quieter) — there is no percentage or
+   * Settings value involved. The native module applies exactly one key press.
+   */
+  async adjustVolume(direction: 1 | -1, source: VolumeSource = 'voice'): Promise<VolumeChange> {
     if (isDeviceVolumeAvailable) {
-      const step = await stepDeviceVolumePercent(delta);
+      const step = await adjustDeviceVolume(direction);
 
       if (step) {
         const previousPercent =
           step.max > 0
             ? Math.round((step.levelBefore * 100) / step.max)
-            : Math.max(0, Math.min(100, Math.round(step.percent - delta)));
+            : Math.max(0, Math.min(100, Math.round(step.percent - direction)));
         const volumePercent = Math.round(step.percent);
         const moved = step.levelAfter !== step.levelBefore;
 
@@ -505,9 +504,9 @@ export class SpotifyPlaybackController {
         let unverified = false;
 
         if (!moved) {
-          if (delta > 0 && step.levelBefore >= step.max) {
+          if (direction > 0 && step.levelBefore >= step.max) {
             blockedReason = 'maximum';
-          } else if (delta < 0 && step.levelBefore <= 0) {
+          } else if (direction < 0 && step.levelBefore <= 0) {
             blockedReason = 'minimum';
           } else {
             unverified = true;
@@ -518,7 +517,7 @@ export class SpotifyPlaybackController {
         return {
           previousPercent,
           volumePercent,
-          appliedDelta: unverified ? delta : volumePercent - previousPercent,
+          appliedDelta: unverified ? direction : volumePercent - previousPercent,
           blockedReason,
           unverified,
           device: {
@@ -533,8 +532,12 @@ export class SpotifyPlaybackController {
       }
     }
 
+    /*
+     * No native module (iOS / Expo Go): fall back to Spotify's own volume,
+     * using the same fixed 5-point step as before.
+     */
     const previousPercent = await this.currentVolumePercent();
-    return this.setVolumeAbsolute(previousPercent + delta, source, previousPercent);
+    return this.setVolumeAbsolute(previousPercent + direction * 5, source, previousPercent);
   }
 
   /** Absolute volume set, used by both voice commands and Adaptive Audio. */
