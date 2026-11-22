@@ -354,6 +354,7 @@ function VolumeCard() {
                 : `now step ${lastVolume.levelAfter ?? '?'}`) +
               (lastVolume.max ? ` of ${lastVolume.max}` : '') +
               (lastVolume.voiceRoute ? ' · voice route' : '') +
+              (lastVolume.method ? ` · via ${lastVolume.method}` : '') +
               ` · ${lastVolume.outcome === 'headset' ? 'headset (level unreadable)' : lastVolume.outcome}`
             : '—'
         }
@@ -365,7 +366,8 @@ function VolumeCard() {
           lastTest
             ? `step ${lastTest.levelBefore} → ${lastTest.levelAfter} of ${lastTest.max}` +
               (lastTest.bluetooth ? ' · Bluetooth' : '') +
-              (lastTest.voiceRoute ? ' · voice route' : '')
+              (lastTest.voiceRoute ? ' · voice route' : '') +
+              (lastTest.method ? ` · via ${lastTest.method}` : '')
             : '—'
         }
       />

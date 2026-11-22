@@ -63,6 +63,8 @@ export interface VolumeStepResult {
   voiceRoute?: boolean;
   /** Raw AudioManager mode (0 = normal, 3 = communication). */
   audioMode?: number;
+  /** Which call moved the level: set, adjust, set+ui, or none. */
+  method?: string;
 }
 
 export interface VoiceSystemSubscription {

@@ -102,41 +102,56 @@ class VoiceSystemModule : Module() {
     val max = maxVolume(audio)
     val before = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
     val delta = if (direction == AudioManager.ADJUST_RAISE) magnitude else -magnitude
+    val target = (before + delta).coerceIn(0, max)
 
-    for (index in 0 until magnitude) {
-      try {
-        /*
-         * FLAG_SHOW_UI makes this behave like an actual hardware key press:
-         * some OEM audio stacks (vivo/OriginOS included) route a silent
-         * programmatic change differently from a user-initiated one.
-         * FLAG_PLAY_SOUND additionally plays the system feedback through the
-         * active route, which forces the audio HAL to apply it.
-         */
-        audio.adjustStreamVolume(
-          AudioManager.STREAM_MUSIC,
-          direction,
-          AudioManager.FLAG_SHOW_UI or AudioManager.FLAG_PLAY_SOUND
-        )
-      } catch (error: SecurityException) {
-        android.util.Log.w("VoiceSystem", "volume adjust refused", error)
-        break
-      }
-    }
+    /*
+     * Why not a single FLAG_SHOW_UI key press: Android's volume controller can
+     * suppress an adjustment carrying FLAG_SHOW_UI while the volume panel is
+     * hidden — the first "press" only opens the panel, like a real key. The
+     * Ride Mode test button is often tapped with the panel still open from a
+     * previous tap; a spoken or typed command arrives with it closed. Voice and
+     * typed commands failed while the button worked even though both run this
+     * exact function, which is consistent with that. The old setStreamVolume
+     * fallback carried FLAG_SHOW_UI too and fired in the same instant.
+     *
+     * So: try each method in turn, with no UI flag first, and stop the moment
+     * the level actually moves. Checking after every attempt means one command
+     * can never apply more than the requested step.
+     */
+    val attempts: List<Pair<String, () -> Unit>> = listOf(
+      "set" to {
+        audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+      },
+      "adjust" to {
+        repeat(magnitude) {
+          audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, 0)
+        }
+      },
+      "set+ui" to {
+        // Panel is open by now (or this opens it); a second call applies.
+        audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, AudioManager.FLAG_SHOW_UI)
+        if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) == before) {
+          Thread.sleep(150)
+          audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, AudioManager.FLAG_SHOW_UI)
+        }
+      },
+    )
 
-    var after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+    var after = before
+    var method = "none"
 
-    if (after == before) {
-      // Some OEM frameworks ignore the adjust call for third-party apps.
-      val target = (before + delta).coerceIn(0, max)
-      try {
-        audio.setStreamVolume(
-          AudioManager.STREAM_MUSIC,
-          target,
-          AudioManager.FLAG_SHOW_UI or AudioManager.FLAG_PLAY_SOUND
-        )
+    if (target != before) {
+      for ((name, attempt) in attempts) {
+        try {
+          attempt()
+        } catch (error: SecurityException) {
+          android.util.Log.w("VoiceSystem", "volume $name refused", error)
+        }
         after = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-      } catch (error: SecurityException) {
-        android.util.Log.w("VoiceSystem", "volume set refused", error)
+        if (after != before) {
+          method = name
+          break
+        }
       }
     }
 
@@ -171,7 +186,7 @@ class VoiceSystemModule : Module() {
 
     android.util.Log.i(
       "VoiceSystem",
-      "volume step delta=$delta before=$before after=$after max=$max " +
+      "volume step delta=$delta before=$before after=$after max=$max method=$method " +
         "bluetooth=$bluetooth voiceRoute=$voiceRouteActive"
     )
 
@@ -182,7 +197,8 @@ class VoiceSystemModule : Module() {
       "max" to max,
       "bluetooth" to bluetooth,
       "voiceRoute" to voiceRouteActive,
-      "audioMode" to audio.mode
+      "audioMode" to audio.mode,
+      "method" to method
     )
   }
 

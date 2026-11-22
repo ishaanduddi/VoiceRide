@@ -96,6 +96,7 @@ export interface VolumeChange {
     voiceRoute?: boolean;
     /** Raw AudioManager mode (0 = normal, 3 = communication). */
     audioMode?: number;
+    method?: string;
   };
 }
 
@@ -527,6 +528,7 @@ export class SpotifyPlaybackController {
             bluetooth: step.bluetooth,
             voiceRoute: step.voiceRoute,
             audioMode: step.audioMode,
+            method: step.method,
           },
         };
       }
