@@ -21,6 +21,8 @@ I built **VoiceRiders** — a hands-free Spotify controller for riders, and for 
 
 You talk. It changes the song. No looking down, no pulling over.
 
+> ⚠️ **This is an early beta.** Bugs and rough edges are expected — the form is there to catch them, not to judge. If something fails, tell me what you said and what happened; that's more useful than a perfect score.
+
 ## What it does
 
 - 🎵 **“Play believer”** — or “play believer by imagine dragons” when you want that exact version

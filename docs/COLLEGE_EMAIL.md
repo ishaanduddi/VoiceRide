@@ -18,6 +18,8 @@ I'm **[NAME]** from **[BRANCH]**, 5th semester. For my Natural Language Processi
 
 You say **“play believer”** or **“next song”**, and it just happens — screen off, phone in your pocket, helmet on.
 
+> ⚠️ **Heads-up: this is an early beta.** Bugs and rough edges are expected — the form is there to catch them, not to judge. If something fails, tell me what you said and what happened; that's genuinely more useful than a perfect score.
+
 ## What it does
 
 - 🎵 Play any song by name: “play believer”, “play believer by imagine dragons”
