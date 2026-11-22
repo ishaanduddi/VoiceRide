@@ -63,7 +63,7 @@ export interface VolumeStepResult {
   voiceRoute?: boolean;
   /** Raw AudioManager mode (0 = normal, 3 = communication). */
   audioMode?: number;
-  /** Which call moved the level: set, adjust, set+ui, or none. */
+  /** Which call moved the level: set, session, adjust, set+ui, suggested, or none. */
   method?: string;
   /** Every attempt and the phone state around it, for the diagnostics card. */
   trace?: string;

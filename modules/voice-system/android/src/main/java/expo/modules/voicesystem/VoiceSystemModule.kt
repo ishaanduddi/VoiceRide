@@ -4,11 +4,14 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.session.MediaController
+import android.media.session.MediaSession
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -64,6 +67,35 @@ class VoiceSystemModule : Module() {
    */
   private var applicationContext: Context? = null
 
+  /**
+   * A private, never-activated media session used only to send volume steps.
+   *
+   * `MediaController.adjustVolume` on a local-playback session is forwarded by
+   * the system's media session service to AudioService — the route the
+   * hardware volume keys take. It is never set active, so it never takes
+   * media buttons or the "now playing" slot away from Spotify.
+   */
+  private var volumeSession: MediaSession? = null
+
+  private fun volumeController(): MediaController? {
+    val context = applicationContext ?: appContext.reactContext ?: return null
+    val session = volumeSession ?: try {
+      MediaSession(context, "VoiceRidersVolume").also { created ->
+        created.setPlaybackToLocal(
+          AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .build()
+        )
+        volumeSession = created
+      }
+    } catch (error: Exception) {
+      android.util.Log.w("VoiceSystem", "could not create the volume session", error)
+      return null
+    }
+    return session.controller
+  }
+
   private fun audioManager(): AudioManager? =
     (applicationContext ?: appContext.reactContext)
       ?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -105,22 +137,33 @@ class VoiceSystemModule : Module() {
     val target = (before + delta).coerceIn(0, max)
 
     /*
-     * Why not a single FLAG_SHOW_UI key press: Android's volume controller can
-     * suppress an adjustment carrying FLAG_SHOW_UI while the volume panel is
-     * hidden — the first "press" only opens the panel, like a real key. The
-     * Ride Mode test button is often tapped with the panel still open from a
-     * previous tap; a spoken or typed command arrives with it closed. Voice and
-     * typed commands failed while the button worked even though both run this
-     * exact function, which is consistent with that. The old setStreamVolume
-     * fallback carried FLAG_SHOW_UI too and fired in the same instant.
+     * Measured on the test phone (vivo I2221, `dumpsys audio` + logcat):
+     * AudioService RECEIVES every app volume call but only applies it within a
+     * few seconds of the user touching this app's own window. A test-button tap
+     * always qualifies; a spoken command (or a typed one — the taps go to the
+     * keyboard, a different window) does not, so it is dropped silently, with
+     * no error and no VOLUME_CHANGED. The hardware keys always work: they reach
+     * AudioService through the media session service, as the system.
      *
-     * So: try each method in turn, with no UI flag first, and stop the moment
-     * the level actually moves. Checking after every attempt means one command
-     * can never apply more than the requested step.
+     * So after the direct call, try that same media-session route ("session").
+     * Try each method in turn and stop the moment the level actually moves, so
+     * one command can never apply more than the requested step.
      */
     val attempts: List<Pair<String, () -> Unit>> = listOf(
       "set" to {
         audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+      },
+      "session" to {
+        val controller = volumeController()
+        if (controller != null) {
+          repeat(magnitude) { controller.adjustVolume(direction, 0) }
+          // The session service applies it on its own thread: wait for it.
+          var waited = 0
+          while (waited < 400 && audio.getStreamVolume(AudioManager.STREAM_MUSIC) == before) {
+            Thread.sleep(50)
+            waited += 50
+          }
+        }
       },
       "adjust" to {
         repeat(magnitude) {
@@ -622,6 +665,8 @@ class VoiceSystemModule : Module() {
 
     OnDestroy {
       stopCapture()
+      volumeSession?.release()
+      volumeSession = null
     }
   }
 }
