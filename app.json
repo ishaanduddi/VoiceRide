@@ -3,7 +3,7 @@
     "name": "VoiceRiders",
     "slug": "voiceriders",
     "scheme": "voiceriders",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -89,4 +89,5 @@
     "owner": "ishaanduddi"
   }
 }
+
 
