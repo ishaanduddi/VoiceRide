@@ -150,20 +150,35 @@ class VoiceSystemModule : Module() {
      * one command can never apply more than the requested step.
      */
     val attempts: List<Pair<String, () -> Unit>> = listOf(
-      "set" to {
-        audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
-      },
+      /*
+       * The hardware-key route first. Activating the session briefly makes the
+       * system's media session service treat the adjustment as coming from an
+       * active session — the path the volume keys take, and the only one this
+       * OEM applies when the app's own window was not touched recently. It is
+       * deactivated immediately afterwards so Spotify keeps the media buttons
+       * and the "now playing" slot.
+       */
       "session" to {
         val controller = volumeController()
+        val session = volumeSession
         if (controller != null) {
-          repeat(magnitude) { controller.adjustVolume(direction, 0) }
-          // The session service applies it on its own thread: wait for it.
-          var waited = 0
-          while (waited < 400 && audio.getStreamVolume(AudioManager.STREAM_MUSIC) == before) {
-            Thread.sleep(50)
-            waited += 50
+          val wasActive = session?.isActive == true
+          try {
+            session?.isActive = true
+            repeat(magnitude) { controller.adjustVolume(direction, 0) }
+            // The session service applies it on its own thread: wait for it.
+            var waited = 0
+            while (waited < 600 && audio.getStreamVolume(AudioManager.STREAM_MUSIC) == before) {
+              Thread.sleep(50)
+              waited += 50
+            }
+          } finally {
+            if (!wasActive) session?.isActive = false
           }
         }
+      },
+      "set" to {
+        audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
       },
       "adjust" to {
         repeat(magnitude) {
@@ -228,11 +243,22 @@ class VoiceSystemModule : Module() {
       }
     }
 
+    Thread.sleep(400)
+    var late = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+
+    /*
+     * The system may apply the change after our own checks gave up (the
+     * session service is asynchronous). Treat a late move as the success it is
+     * instead of telling the rider the phone blocked it.
+     */
+    if (after == before && late != before) {
+      after = late
+      method = "late"
+    }
+
     val dnd = (appContext.reactContext ?: applicationContext)
       ?.getSystemService(Context.NOTIFICATION_SERVICE)
       ?.let { (it as? android.app.NotificationManager)?.currentInterruptionFilter }
-    Thread.sleep(400)
-    val late = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
     trace.append(
       "| mode=${audio.mode} music=${if (audio.isMusicActive) 1 else 0} " +
         "ring=${audio.ringerMode} dnd=${dnd ?: "?"} late=$late " +
