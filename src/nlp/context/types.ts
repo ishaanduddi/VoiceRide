@@ -20,7 +20,7 @@ export interface VolumeCommandRecord {
   audioMode?: number;
   method?: string;
   trace?: string;
-  outcome: 'applied' | 'maximum' | 'minimum' | 'headset';
+  outcome: 'applied' | 'maximum' | 'minimum' | 'blocked';
 }
 
 export interface AppContext {

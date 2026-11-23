@@ -14,11 +14,13 @@ export const responses = {
   /** Used when a Bluetooth headset owns the level, so there is no number to read back. */
   volumeUp: 'Volume up.',
   volumeDown: 'Volume down.',
+  /** The phone refused the change (level did not move, not at a limit). */
+  volumeBlocked: "Couldn't change the volume.",
   playingSong: (name: string, artists: string) =>
     artists ? `Playing ${name} by ${artists}.` : `Playing ${name}.`,
 
   /** Nothing usable was recognised, or the command was too weak to act on. */
-  lowConfidence: "Sorry, I didn't catch that.",
+  lowConfidence: 'Say that again?',
 
   /** The old playlist-number command was removed in favour of song names. */
   numberNotSupported:

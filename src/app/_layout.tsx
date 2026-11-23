@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { bootstrapApp } from '@/services/bootstrap';
 import { installGlobalErrorHandler } from '@/services/crashGuard';
+import { useAutoApplyUpdates } from '@/updates/useAutoApplyUpdates';
 import { colors, fontSize } from '@/theme';
 
 // Capture unhandled JS errors as early as possible (no-op where unsupported).
@@ -14,6 +15,7 @@ installGlobalErrorHandler();
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
+  useAutoApplyUpdates();
 
   useEffect(() => {
     let mounted = true;

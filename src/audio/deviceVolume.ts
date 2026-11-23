@@ -90,6 +90,27 @@ export async function adjustDeviceVolume(
   }
 }
 
+/**
+ * Moves the volume by `deltaPercent` (e.g. +10, -20), converted on the native
+ * side into whole hardware steps (at least one). Same fallbacks as a single
+ * step, including the media-session route.
+ */
+export async function stepDeviceVolumePercent(
+  deltaPercent: number,
+): Promise<VolumeStepResult | undefined> {
+  if (!native || !Number.isFinite(deltaPercent) || deltaPercent === 0) return undefined;
+
+  try {
+    const result = await native.stepMediaVolume(deltaPercent);
+    if (!result || typeof result.percent !== 'number' || !Number.isFinite(result.percent)) {
+      return undefined;
+    }
+    return result;
+  } catch {
+    return undefined;
+  }
+}
+
 /** True when audio is routed to a Bluetooth device. */
 export async function isBluetoothAudioActive(): Promise<boolean> {
   if (!native) return false;

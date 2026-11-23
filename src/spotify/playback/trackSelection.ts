@@ -18,7 +18,7 @@
 
 import { phraseSimilarity, tokenSimilarity } from '@/nlp/fuzzyMatcher';
 
-import { artistLine } from '../playback/playlistTrackMap';
+import { artistLine, type TrackEntry } from '../playback/playlistTrackMap';
 import type { SpotifyTrack } from '../types';
 
 /** Lowercase, punctuation collapsed to single spaces. */
@@ -46,14 +46,44 @@ interface Scored {
 }
 
 /**
+ * Spelling-insensitive key for romanised Indian-language titles.
+ *
+ * Hindi/Telugu/Tamil/Punjabi titles have no single English spelling, and the
+ * speech model writes what it hears: "kesaria" for "Kesariya", "tumhi ho" for
+ * "Tum Hi Ho", "o mahi" for "O Maahi", "buta boma" for "Butta Bomma". Folding
+ * aspirates (bh/dh/th/kh…), long vowels (aa/ee/oo), y/i, w/v, z/j and doubled
+ * letters makes those variants land on the same key.
+ */
+export function transliterationKey(value: string): string {
+  let key = value.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const rules: [RegExp, string][] = [
+    [/ph/g, 'f'],
+    [/([bdtkgjsc])h/g, '$1'],
+    [/ck/g, 'k'],
+    [/q/g, 'k'],
+    [/x/g, 'ks'],
+    [/z/g, 'j'],
+    [/w/g, 'v'],
+    [/y/g, 'i'],
+    [/ee/g, 'i'],
+    [/(oo|ou)/g, 'u'],
+    [/h/g, ''],
+    [/(.)\1+/g, '$1'],
+  ];
+  for (const [pattern, replacement] of rules) key = key.replace(pattern, replacement);
+  return key;
+}
+
+/**
  * Similarity of a spoken title to a Spotify title.
  *
- * Three passes, best wins:
+ * Four passes, best wins:
  *   1. compact equality      "fe!n" vs "fein" -> exact once punctuation is gone
  *   2. phrase similarity     word-level, order-insensitive, includes Soundex
  *   3. compact similarity    catches "fein" vs "fen" and other clipped words
+ *   4. transliteration key   "kesaria" vs "Kesariya", "tumhi ho" vs "Tum Hi Ho"
  */
-function titleSimilarity(trackName: string, wanted: string): number {
+export function titleSimilarity(trackName: string, wanted: string): number {
   const trackWords = normalise(trackName);
   const wantedWords = normalise(wanted);
 
@@ -67,7 +97,53 @@ function titleSimilarity(trackName: string, wanted: string): number {
   // punctuated ("fe!n" -> "fen" vs "fein", "stay" vs "stai").
   const whole = tokenSimilarity(compact(trackWords), compact(wantedWords));
 
-  return Math.max(phrase * 0.95, whole);
+  const trackKey = transliterationKey(trackWords);
+  const wantedKey = transliterationKey(wantedWords);
+  const transliterated =
+    trackKey && trackKey === wantedKey ? 0.97 : tokenSimilarity(trackKey, wantedKey) * 0.92;
+
+  return Math.max(phrase * 0.95, whole, transliterated);
+}
+
+/**
+ * Spotify titles often carry extras the rider never says: "Kesariya (From
+ * \"Brahmastra\")", "Tum Hi Ho - Remastered". Compare against the main title too.
+ */
+function mainTitle(name: string): string {
+  return name.split(/\s[-–(]|\s*\(|\s*\[/)[0]?.trim() || name;
+}
+
+function bestTitleSimilarity(trackName: string, wanted: string): number {
+  const main = mainTitle(trackName);
+  const full = titleSimilarity(trackName, wanted);
+  return main === trackName ? full : Math.max(full, titleSimilarity(main, wanted));
+}
+
+/**
+ * Best match for a spoken title inside the selected playlist.
+ *
+ * Riders mostly ask for songs they already saved, and the playlist is the one
+ * place where a regional title's exact spelling is known, so it is checked
+ * before (and as a fallback to) Spotify search.
+ */
+export function bestPlaylistMatch(
+  entries: readonly TrackEntry[],
+  title: string,
+  artist?: string,
+): { entry: TrackEntry; score: number } | undefined {
+  let best: { entry: TrackEntry; score: number } | undefined;
+
+  for (const entry of entries) {
+    let score = bestTitleSimilarity(entry.name, title);
+    if (artist) {
+      const artistScore = tokenSimilarity(compact(entry.artists), compact(artist));
+      const hit = compact(entry.artists).includes(compact(artist)) || artistScore >= 0.85;
+      score = hit ? Math.min(1, score + 0.05) : score * 0.85;
+    }
+    if (!best || score > best.score) best = { entry, score };
+  }
+
+  return best;
 }
 
 function scoreTrack(
@@ -76,7 +152,7 @@ function scoreTrack(
   artist: string | undefined,
   searchRank: number,
 ): Scored {
-  const titleScore = titleSimilarity(track.name, title);
+  const titleScore = bestTitleSimilarity(track.name, title);
 
   const names = (track.artists ?? []).map((entry) => compact(entry.name));
   const wantedArtist = artist ? compact(artist) : undefined;
@@ -96,7 +172,7 @@ function scoreTrack(
 }
 
 /** Minimum title similarity worth playing at all. */
-const MIN_TITLE_SCORE = 0.55;
+const MIN_TITLE_SCORE = 0.72;
 
 /**
  * How far below the best title score still counts as "the same song".
@@ -126,7 +202,10 @@ export function pickBestTrack(
 
   const scored = tracks.map((track, index) => scoreTrack(track, title, artist, index));
   const plausible = scored.filter((entry) => entry.titleScore >= MIN_TITLE_SCORE);
-  const pool = plausible.length > 0 ? plausible : scored;
+  // Nothing resembles what was said: play nothing rather than the most popular
+  // unrelated result (that was the "plays a random song" bug).
+  if (plausible.length === 0) return undefined;
+  const pool = plausible;
 
   const artistMatches = artist ? pool.filter((entry) => entry.artistHit) : [];
   const finalPool = artistMatches.length > 0 ? artistMatches : pool;

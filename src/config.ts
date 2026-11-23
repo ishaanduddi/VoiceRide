@@ -14,6 +14,7 @@
  * only in the OS keychain via expo-secure-store.
  */
 
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 // --- Static reads (required for build-time inlining) ------------------------
@@ -60,9 +61,24 @@ export const SPOTIFY_SCOPES = [
   'user-read-currently-playing',
 ] as const;
 
+/**
+ * Public Spotify settings from app.json -> expo.extra.spotify.
+ *
+ * `eas update --environment preview` inlines EXPO_PUBLIC_* values from EAS's
+ * server-side environment, not from eas.json (whose `env` only applies to
+ * builds). OTA bundles therefore shipped WITHOUT the client id, and the app
+ * said "No Spotify client id found" until its data was cleared. app.json
+ * travels inside every update manifest, so it is a reliable fallback. Both
+ * values are public: the client id is not a secret under PKCE.
+ */
+const extraSpotify = (Constants.expoConfig?.extra?.spotify ?? {}) as {
+  clientId?: string;
+  redirectUri?: string;
+};
+
 export const spotifyConfig = {
   /** Public client id from https://developer.spotify.com/dashboard */
-  clientId: clean(envSpotifyClientId) ?? '',
+  clientId: clean(envSpotifyClientId) ?? clean(extraSpotify.clientId) ?? '',
   market: clean(envSpotifyMarket),
   scopes: [...SPOTIFY_SCOPES],
   authorizationEndpoint: 'https://accounts.spotify.com/authorize',
@@ -76,7 +92,7 @@ export const spotifyConfig = {
    * that bounces the callback back to the app. See `relay/` and
    * docs/SPOTIFY_SETUP.md.
    */
-  redirectUri: clean(envSpotifyRedirectUri),
+  redirectUri: clean(envSpotifyRedirectUri) ?? clean(extraSpotify.redirectUri),
   /** Where the relay returns into the app. Defaults to `<scheme>://spotify-callback`. */
   appReturnUri: clean(envSpotifyAppReturnUri),
   /** Deep-link path appended to the app scheme: voiceriders://spotify-callback */

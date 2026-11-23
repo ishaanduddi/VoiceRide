@@ -4,7 +4,7 @@ Two independent channels, because they cover different kinds of change.
 
 | Change | Channel | User action |
 |--------|---------|-------------|
-| JavaScript / assets (screens, NLP, copy, Spotify logic) | **EAS Update (OTA)** | none — applied on next launch, or "Restart to apply" |
+| JavaScript / assets (screens, NLP, copy, Spotify logic) | **EAS Update (OTA)** | none — applied automatically once downloaded (never during Ride Mode) |
 | Native (new module, permission, icon, dependency) | **New APK on GitHub Releases** | download and install over the old app |
 
 Settings → **App updates** shows the installed version, the latest GitHub
@@ -46,6 +46,12 @@ updates** → **Restart to apply**.
 
 Rules:
 
+- `EXPO_PUBLIC_*` values in an OTA bundle come from **EAS environment variables**
+  (`--environment preview`), not from `eas.json` (that `env` block only applies
+  to builds) and not reliably from `.env`. The public Spotify client id and
+  redirect URI therefore also live in `app.json` → `expo.extra.spotify`, which
+  ships inside every update. Anything else an OTA bundle needs must be added
+  with `npx eas-cli@latest env:create --environment preview`.
 - `runtimeVersion` follows `app.json` → `version`. **Keep `version` unchanged**
   for JS-only updates.
 - **Bump `version` when native code changes** (new module, permission, etc.).

@@ -75,6 +75,10 @@
       ]
     ],
     "extra": {
+      "spotify": {
+        "clientId": "bd64bbdc673943c6a3903851695645e3",
+        "redirectUri": "https://voiceriders-oauth-relay.vercel.app/api/spotify-callback"
+      },
       "router": {
         "origin": false
       },

@@ -45,12 +45,10 @@ function volumeReply(change: VolumeChange): string {
       return responses.volumeAtMin;
     default:
       /*
-       * With a Bluetooth headset the level cannot be read back, so reporting a
-       * number would be a guess. The direction is what the rider asked for.
+       * The level did not move and is not at a limit: the phone refused the
+       * change. Saying "Volume up." here made riders think it had worked.
        */
-      if (change.unverified) {
-        return change.appliedDelta >= 0 ? responses.volumeUp : responses.volumeDown;
-      }
+      if (change.unverified) return responses.volumeBlocked;
       return responses.volume(change.volumePercent);
   }
 }
@@ -69,7 +67,7 @@ function volumeRecord(change: VolumeChange, delta: number): VolumeCommandRecord 
     audioMode: change.device?.audioMode,
     method: change.device?.method,
     trace: change.device?.trace,
-    outcome: change.blockedReason ?? (change.unverified ? 'headset' : 'applied'),
+    outcome: change.blockedReason ?? (change.unverified ? 'blocked' : 'applied'),
   };
 }
 
@@ -107,25 +105,31 @@ export async function dispatchInterpretation(
 
   try {
     switch (intent) {
-      case 'INCREASE_VOLUME': {
+      case 'INCREASE_VOLUME':
+      case 'DECREASE_VOLUME': {
         /*
-         * A fixed, predefined step: one hardware key press. No percentage and
-         * no Settings value — the native module moves exactly one step, the
-         * same call the Ride Mode test button makes.
+         * "increase volume" = one hardware step (a key press).
+         * "increase volume by 10 percent" = that amount, in whole steps.
          */
-        const change = await controller.adjustVolume(1, 'voice');
+        const direction: 1 | -1 = intent === 'INCREASE_VOLUME' ? 1 : -1;
+        const change = await controller.adjustVolume(
+          direction,
+          'voice',
+          interpretation.entities.volumePercent,
+        );
         mark({
           volumePercent: change.volumePercent,
-          lastVolumeCommand: volumeRecord(change, 1),
+          lastVolumeCommand: volumeRecord(change, direction),
         });
         return { ok: true, intent, spoken: volumeReply(change) };
       }
 
-      case 'DECREASE_VOLUME': {
-        const change = await controller.adjustVolume(-1, 'voice');
+      case 'SET_VOLUME': {
+        const target = interpretation.entities.volumeTarget ?? 50;
+        const change = await controller.setVolumeTo(target, 'voice');
         mark({
           volumePercent: change.volumePercent,
-          lastVolumeCommand: volumeRecord(change, -1),
+          lastVolumeCommand: volumeRecord(change, Math.sign(change.appliedDelta) || 1),
         });
         return { ok: true, intent, spoken: volumeReply(change) };
       }

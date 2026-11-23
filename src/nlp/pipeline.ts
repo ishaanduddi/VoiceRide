@@ -13,12 +13,13 @@ import { evaluateContext, resolveIntentWithContext } from './context/contextMana
 import type { AppContext } from './context/types';
 import { extractEntities } from './entityExtractor/songRequest';
 import { extractVolumeAmount } from './entityExtractor/volumeAmount';
+import { extractVolumeTarget } from './entityExtractor/volumeTarget';
 import { bestPhraseSimilarity } from './fuzzyMatcher';
 import { classifyIntent } from './intentClassifier/classifier';
 import { INTENT_KEYWORDS } from './intentClassifier/labels';
 import { normalizeCommand } from './preprocessing/normalize';
 import { applyVolumeDirection, isExplicitVolumeCommand } from './preprocessing/volumeDirection';
-import type { Entities, Intent, Interpretation } from './types';
+import type { Entities, Intent, Interpretation, NormalizedCommand } from './types';
 
 export interface InterpretOptions {
   /** Confidence reported by the ASR provider, when available. */
@@ -26,6 +27,42 @@ export interface InterpretOptions {
   context: AppContext;
   /** Execute threshold; comes from user Settings. */
   confidenceThreshold?: number;
+}
+
+/** Words allowed before "play" in a song request: "could you please play X". */
+const POLITE_PREFIX = new Set(['could', 'can', 'would', 'will', 'you', 'please', 'just', 'hey', 'ok', 'okay', 'now']);
+
+function containsPhrase(text: string, phrase: string): boolean {
+  return ` ${text} `.includes(` ${phrase} `);
+}
+
+/**
+ * True when a short utterance literally contains its intent's own command
+ * phrase. Single-word phrases ("next", "stop") only count when they are
+ * nearly the whole utterance, so "turn left next" never skips a song.
+ */
+function isExplicitCommand(intent: Intent, normalized: NormalizedCommand, entities: Entities): boolean {
+  if (intent === 'UNKNOWN') return false;
+  const words = normalized.tokens;
+
+  if (intent === 'PLAY_SONG') {
+    if (!entities.songTitle) return false;
+    const playIndex = words.lastIndexOf('play');
+    const putOn = words.indexOf('put') >= 0 && words[words.indexOf('put') + 1] === 'on';
+    if (playIndex < 0 && !putOn) return false;
+    const prefix = playIndex >= 0 ? words.slice(0, playIndex) : words.slice(0, words.indexOf('put'));
+    return prefix.every((word) => POLITE_PREFIX.has(word));
+  }
+
+  for (const phrase of INTENT_KEYWORDS[intent] ?? []) {
+    const phraseWords = phrase.split(' ').length;
+    const limit = phraseWords === 1 ? 2 : phraseWords + 3;
+    if (words.length > limit) continue;
+    if (containsPhrase(normalized.cleaned, phrase) || containsPhrase(normalized.canonicalText, phrase)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Converts free text into a fully-scored interpretation. */
@@ -75,8 +112,16 @@ export function interpretCommand(transcript: string, options: InterpretOptions):
   intent = resolved.intent;
   reasons.push(...resolved.reasons);
 
-  const fuzzyScore = INTENT_KEYWORDS[intent].length
-    ? bestPhraseSimilarity(normalized.canonicalText, INTENT_KEYWORDS[intent])
+  // "set volume to 70" / "make it 70 percent" / "full volume": an absolute level.
+  const volumeTarget = extractVolumeTarget(normalized);
+  if (volumeTarget !== undefined) {
+    intent = 'SET_VOLUME';
+    entities = { volumeTarget };
+    reasons.push(`absolute volume ${volumeTarget}%`);
+  }
+
+  const fuzzyScore = (INTENT_KEYWORDS[intent] ?? []).length
+    ? bestPhraseSimilarity(normalized.canonicalText, INTENT_KEYWORDS[intent] ?? [])
     : 0;
   if (intent === 'UNKNOWN') reasons.push('nothing in the utterance matched a known intent');
 
@@ -108,6 +153,26 @@ export function interpretCommand(transcript: string, options: InterpretOptions):
     if (decision === 'reject') computed.reasons.push('explicit volume phrase -> execute');
     decision = 'execute';
     confidence = Math.max(confidence, 0.75);
+  }
+
+  /*
+   * The same reasoning for every other command: a SHORT utterance that
+   * contains the intent's own phrase ("next song", "pause the music", "could
+   * you play kesariya") is unambiguous, and rejecting it only makes the rider
+   * repeat themselves. Measured on ml/data + everyday speech, ordinary talk
+   * scores 0.45-0.55, so the global threshold is left alone and only these
+   * explicit commands are lifted.
+   */
+  // An absolute level is a pattern match on an explicit number: always safe to run.
+  if (intent === 'SET_VOLUME') {
+    decision = 'execute';
+    confidence = Math.max(confidence, 0.85);
+  }
+
+  if (decision === 'reject' && isExplicitCommand(intent, normalized, entities)) {
+    computed.reasons.push('explicit command phrase -> execute');
+    decision = 'execute';
+    confidence = Math.max(confidence, 0.72);
   }
 
   return {

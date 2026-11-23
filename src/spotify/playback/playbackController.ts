@@ -9,8 +9,11 @@
 import {
   adjustDeviceVolume,
   getDeviceVolumePercent,
+  getDeviceVolumeSteps,
   isDeviceVolumeAvailable,
   setDeviceVolumePercent,
+  stepDeviceVolumePercent,
+  type VolumeStepResult,
 } from '@/audio/deviceVolume';
 import { sleep } from '@/utils/async';
 import { AppError, NoActiveDeviceError, SpotifyApiError } from '@/utils/errors';
@@ -27,10 +30,18 @@ import {
   type PlaylistTrackMap,
   type TrackEntry,
 } from './playlistTrackMap';
-import { describeTrack as describeSpotifyTrack, pickBestTrack } from './trackSelection';
+import {
+  bestPlaylistMatch,
+  describeTrack as describeSpotifyTrack,
+  pickBestTrack,
+} from './trackSelection';
 
 const log = createLogger('spotify:playback');
 
+/** Playlist match good enough to play without searching Spotify. */
+const PLAYLIST_DIRECT_SCORE = 0.88;
+/** Playlist match used only when Spotify search found nothing that fits. */
+const PLAYLIST_FALLBACK_SCORE = 0.8;
 const DEFAULT_VOLUME_PERCENT = 50;
 const MIN_VOLUME_PERCENT = 0;
 const MAX_VOLUME_PERCENT = 100;
@@ -322,16 +333,30 @@ export class SpotifyPlaybackController {
     const query = title.trim();
     if (!query) throw new AppError('SONG_NOT_FOUND', 'Say the name of the song you want to play.');
 
+    /*
+     * 1. The selected playlist first. It is where the rider's own songs are,
+     *    with the exact spelling of regional titles that speech recognition
+     *    can only approximate ("kesaria" -> "Kesariya").
+     */
+    const target = this.deps.getTarget();
+    const local = target ? bestPlaylistMatch(target.entries, query, artist) : undefined;
+
+    if (target && local && local.score >= PLAYLIST_DIRECT_SCORE) {
+      log.info(`"${query}" matched playlist track "${local.entry.name}" (${local.score.toFixed(2)})`);
+      return this.playPlaylistEntry(target, local.entry);
+    }
+
+    // 2. Spotify search.
     const results = await searchTracks({ title: query, artist });
     const chosen = pickBestTrack(results, query, artist);
 
     if (!chosen || !chosen.uri) {
-      throw new AppError(
-        'SONG_NOT_FOUND',
-        artist
-          ? `I couldn't find "${query}" by ${artist} on Spotify.`
-          : `I couldn't find "${query}" on Spotify.`,
-      );
+      // 3. A weaker playlist match still beats nothing — never a random song.
+      if (target && local && local.score >= PLAYLIST_FALLBACK_SCORE) {
+        log.info(`search missed "${query}"; using playlist track "${local.entry.name}"`);
+        return this.playPlaylistEntry(target, local.entry);
+      }
+      throw new AppError('SONG_NOT_FOUND', `Couldn't find ${query}.`);
     }
 
     log.info(`search "${query}"${artist ? ` / ${artist}` : ''} -> "${describeSpotifyTrack(chosen)}"`);
@@ -344,6 +369,16 @@ export class SpotifyPlaybackController {
       artists: (chosen.artists ?? []).map((entry) => entry.name).join(', '),
       uri: chosen.uri,
     };
+  }
+
+  /** Starts a track from the selected playlist, keeping the playlist as the context. */
+  private async playPlaylistEntry(target: PlaylistTrackMap, entry: TrackEntry): Promise<PlayedTrack> {
+    await this.startPlayback(
+      { contextUri: target.playlistUri, offsetPosition: entry.spotifyPosition, positionMs: 0 },
+      entry.uri,
+      entry.name,
+    );
+    return { name: entry.name, artists: entry.artists, uri: entry.uri };
   }
 
   /**
@@ -478,70 +513,114 @@ export class SpotifyPlaybackController {
     );
   }
 
-  /**
-   * One predefined hardware step up or down.
-   *
-   * `direction` is 1 (louder) or -1 (quieter) — there is no percentage or
-   * Settings value involved. The native module applies exactly one key press.
-   */
-  async adjustVolume(direction: 1 | -1, source: VolumeSource = 'voice'): Promise<VolumeChange> {
-    if (isDeviceVolumeAvailable) {
-      const step = await adjustDeviceVolume(direction);
+  /** Turns a native step result into a VolumeChange (shared by every volume command). */
+  private fromStep(step: VolumeStepResult, direction: 1 | -1, source: VolumeSource): VolumeChange {
+    const previousPercent =
+      step.max > 0
+        ? Math.round((step.levelBefore * 100) / step.max)
+        : Math.max(0, Math.min(100, Math.round(step.percent - direction)));
+    const volumePercent = Math.round(step.percent);
+    const moved = step.levelAfter !== step.levelBefore;
 
-      if (step) {
-        const previousPercent =
-          step.max > 0
-            ? Math.round((step.levelBefore * 100) / step.max)
-            : Math.max(0, Math.min(100, Math.round(step.percent - direction)));
-        const volumePercent = Math.round(step.percent);
-        const moved = step.levelAfter !== step.levelBefore;
+    /*
+     * Only report a limit when the stream really is at one. A level that did
+     * not move otherwise means the phone refused the change (measured on a
+     * vivo phone: AudioService receives the call and silently drops it).
+     */
+    let blockedReason: VolumeChange['blockedReason'];
+    let unverified = false;
 
-        /*
-         * Only report a limit when the stream really is at one. Otherwise, if
-         * the level did not move, the headset applied the change itself (or this
-         * audio stack simply does not report it), so the reply is the direction
-         * without a number.
-         */
-        let blockedReason: VolumeChange['blockedReason'];
-        let unverified = false;
-
-        if (!moved) {
-          if (direction > 0 && step.levelBefore >= step.max) {
-            blockedReason = 'maximum';
-          } else if (direction < 0 && step.levelBefore <= 0) {
-            blockedReason = 'minimum';
-          } else {
-            unverified = true;
-          }
-        }
-
-        this.deps.onVolumeChanged?.(volumePercent, source);
-        return {
-          previousPercent,
-          volumePercent,
-          appliedDelta: unverified ? direction : volumePercent - previousPercent,
-          blockedReason,
-          unverified,
-          device: {
-            levelBefore: step.levelBefore,
-            levelAfter: step.levelAfter,
-            max: step.max,
-            bluetooth: step.bluetooth,
-            voiceRoute: step.voiceRoute,
-            audioMode: step.audioMode,
-            method: step.method,
-            trace: step.trace,
-          },
-        };
+    if (!moved) {
+      if (direction > 0 && step.levelBefore >= step.max) {
+        blockedReason = 'maximum';
+      } else if (direction < 0 && step.levelBefore <= 0) {
+        blockedReason = 'minimum';
+      } else {
+        unverified = true;
       }
+    }
+
+    this.deps.onVolumeChanged?.(volumePercent, source);
+    return {
+      previousPercent,
+      volumePercent,
+      appliedDelta: unverified ? 0 : volumePercent - previousPercent,
+      blockedReason,
+      unverified,
+      device: {
+        levelBefore: step.levelBefore,
+        levelAfter: step.levelAfter,
+        max: step.max,
+        bluetooth: step.bluetooth,
+        voiceRoute: step.voiceRoute,
+        audioMode: step.audioMode,
+        method: step.method,
+        trace: step.trace,
+      },
+    };
+  }
+
+  /**
+   * Volume up or down.
+   *
+   * Without `amountPercent` it is one hardware step (one key press). With it
+   * ("increase volume by 10 percent") the native side converts the percentage
+   * into hardware steps, at least one.
+   */
+  async adjustVolume(
+    direction: 1 | -1,
+    source: VolumeSource = 'voice',
+    amountPercent?: number,
+  ): Promise<VolumeChange> {
+    if (isDeviceVolumeAvailable) {
+      const step =
+        amountPercent !== undefined
+          ? await stepDeviceVolumePercent(direction * Math.abs(amountPercent))
+          : await adjustDeviceVolume(direction);
+
+      if (step) return this.fromStep(step, direction, source);
     }
 
     /*
      * No native module (iOS / Expo Go): fall back to Spotify's own volume,
-     * using the same fixed 5-point step as before.
+     * using the requested amount or a fixed 5-point step.
      */
     const previousPercent = await this.currentVolumePercent();
-    return this.setVolumeAbsolute(previousPercent + direction * 5, source, previousPercent);
+    const amount = amountPercent !== undefined ? Math.abs(amountPercent) : 5;
+    return this.setVolumeAbsolute(previousPercent + direction * amount, source, previousPercent);
+  }
+
+  /**
+   * "Set volume to 70": moves the phone volume to the nearest hardware step.
+   *
+   * Implemented as a relative step from the current level rather than a plain
+   * setStreamVolume, so it gets the same fallbacks (media-session route) that
+   * make voice volume work on restrictive phones.
+   */
+  async setVolumeTo(targetPercent: number, source: VolumeSource = 'voice'): Promise<VolumeChange> {
+    const target = clamp(Math.round(targetPercent), MIN_VOLUME_PERCENT, MAX_VOLUME_PERCENT);
+
+    if (isDeviceVolumeAvailable) {
+      const current = await getDeviceVolumePercent();
+      const steps = await getDeviceVolumeSteps();
+
+      if (current !== undefined && steps) {
+        const currentLevel = Math.round((current / 100) * steps);
+        const targetLevel = Math.round((target / 100) * steps);
+
+        if (targetLevel === currentLevel) {
+          return { previousPercent: current, volumePercent: current, appliedDelta: 0 };
+        }
+
+        const direction: 1 | -1 = targetLevel > currentLevel ? 1 : -1;
+        // Whole steps expressed as a percentage, so the native rounding lands exactly.
+        const deltaPercent = ((targetLevel - currentLevel) * 100) / steps;
+        const step = await stepDeviceVolumePercent(deltaPercent);
+        if (step) return this.fromStep(step, direction, source);
+      }
+    }
+
+    return this.setVolumeAbsolute(target, source);
   }
 
   /** Absolute volume set, used by both voice commands and Adaptive Audio. */

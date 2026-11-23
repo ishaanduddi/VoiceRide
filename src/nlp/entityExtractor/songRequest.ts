@@ -32,20 +32,37 @@ export interface SongRequest {
   artist?: string;
 }
 
-export function extractSongRequest(normalized: NormalizedCommand): SongRequest {
-  const tokens = normalized.canonicalTokens;
+/** Words between "play" and the title that are not part of it: "play me the song X". */
+const LEADING_FILLERS = new Set(['me', 'the', 'a', 'song', 'track', 'songs', 'tracks', 'music']);
+/** Words after the title that are not part of it: "play X song please". */
+const TRAILING_FILLERS = new Set(['song', 'track', 'please', 'now', 'pls', 'plz']);
 
-  // Use the LAST "play": "could you play believer" still works.
-  const playIndex = tokens.lastIndexOf('play');
+export function extractSongRequest(normalized: NormalizedCommand): SongRequest {
+  /*
+   * Titles come from the CLEANED words, not the canonical ones: canonical
+   * tokens have stop-words removed and synonyms rewritten, which turned
+   * "shape of you" into "shape" and would mangle any title containing "of",
+   * "you", "me", "the"… — most real titles, and many regional ones.
+   */
+  const cleaned = normalized.tokens;
+  let playIndex = cleaned.lastIndexOf('play');
+  let source = cleaned;
+
+  if (playIndex < 0) {
+    // A synonym ("put on X") only exists in canonical form.
+    source = normalized.canonicalTokens;
+    playIndex = source.lastIndexOf('play');
+  }
   if (playIndex < 0) return {};
 
-  let rest = tokens.slice(playIndex + 1);
+  let rest = source.slice(playIndex + 1);
 
-  // "play song X" / "play track X" -> drop the leading noun.
-  while (rest.length > 0 && (rest[0] === 'track' || rest[0] === 'song')) rest = rest.slice(1);
+  // "play me the song X" -> drop the leading fillers (but never the whole title).
+  while (rest.length > 1 && LEADING_FILLERS.has(rest[0] as string)) rest = rest.slice(1);
+  if (rest.length === 1 && (rest[0] === 'song' || rest[0] === 'track')) return {};
 
-  // A trailing noun ("play the seventh song" -> "... 7 track") is not part of the title.
-  while (rest.length > 1 && (rest[rest.length - 1] === 'track' || rest[rest.length - 1] === 'song')) {
+  // "play X song please" -> drop trailing fillers.
+  while (rest.length > 1 && TRAILING_FILLERS.has(rest[rest.length - 1] as string)) {
     rest = rest.slice(0, -1);
   }
 

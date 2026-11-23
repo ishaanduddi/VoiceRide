@@ -23,7 +23,8 @@
   ],
   "NEXT_SONG": [
     "next song", "next track", "skip", "skip this song", "skip song",
-    "play the next track", "go to the next song", "next"
+    "play the next track", "go to the next song", "next",
+    "change song", "change the song", "another song"
   ],
   "PREVIOUS_SONG": [
     "previous song", "previous track", "go back", "play the previous track",

@@ -1,3 +1,4 @@
+import { spotifyConfig } from '@/config';
 import { createLogger } from '@/utils/logger';
 
 import type { SpotifyPaging, SpotifyTrack } from '../types';
@@ -19,7 +20,9 @@ interface TrackSearchResponse {
 
 async function searchOnce(query: string, limit: number): Promise<SpotifyTrack[]> {
   const response = await spotifyRequest<TrackSearchResponse>('/search', {
-    query: { q: query, type: 'track', limit },
+    // The rider's own market (IN etc.) is what makes regional titles show up;
+    // from_token uses the account's country when none is configured.
+    query: { q: query, type: 'track', limit, market: spotifyConfig.market ?? 'from_token' },
   });
 
   return (response.tracks?.items ?? []).filter(

@@ -17,6 +17,7 @@
 import { File, Paths } from 'expo-file-system';
 
 import { audioConfig, whisperConfig } from '@/config';
+import { libraryStore } from '@/state/libraryStore';
 import type { AsrResult } from '@/nlp/types';
 import { AsrNotConfiguredError } from '@/utils/errors';
 import { createLogger } from '@/utils/logger';
@@ -40,6 +41,35 @@ export const COMMAND_BIAS_PROMPT = [
   'next song, previous song, skip, pause, resume, stop,',
   'increase volume, decrease volume, turn it up, turn it down.',
 ].join(' ');
+
+/** whisper.cpp keeps at most ~224 prompt tokens; stay well inside that. */
+const MAX_PROMPT_CHARS = 700;
+
+/**
+ * Command vocabulary plus the selected playlist's titles.
+ *
+ * The English model writes regional titles by ear ("kesaria", "tumhi ho");
+ * seeing the real spellings in the prompt biases it toward "Kesariya" and
+ * "Tum Hi Ho". Titles in non-Latin scripts are skipped — the English model
+ * cannot output them anyway.
+ */
+function buildPrompt(): string {
+  const entries = libraryStore.getState().trackMap?.entries ?? [];
+  const titles: string[] = [];
+  let length = COMMAND_BIAS_PROMPT.length + 8;
+
+  for (const entry of entries) {
+    const title = entry.name.split(/\s[-–(]|\s*\(|\s*\[/)[0]?.trim() ?? '';
+    if (!title || !/^[\x20-\x7E]+$/.test(title) || titles.includes(title)) continue;
+    if (length + title.length + 2 > MAX_PROMPT_CHARS) break;
+    titles.push(title);
+    length += title.length + 2;
+  }
+
+  return titles.length > 0
+    ? `${COMMAND_BIAS_PROMPT} Songs: ${titles.join(', ')}.`
+    : COMMAND_BIAS_PROMPT;
+}
 
 const UTTERANCE_FILENAME = 'voiceriders-utterance.wav';
 
@@ -109,7 +139,7 @@ export class OnDeviceWhisperProvider implements AsrProvider {
       // most of the "beat" / "next some" style errors tiny models make.
       temperature: 0,
       beamSize: 2,
-      prompt: COMMAND_BIAS_PROMPT,
+      prompt: buildPrompt(),
     });
 
     const result = await promise;

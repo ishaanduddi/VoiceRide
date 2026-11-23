@@ -355,7 +355,7 @@ function VolumeCard() {
               (lastVolume.max ? ` of ${lastVolume.max}` : '') +
               (lastVolume.voiceRoute ? ' · voice route' : '') +
               (lastVolume.method ? ` · via ${lastVolume.method}` : '') +
-              ` · ${lastVolume.outcome === 'headset' ? 'headset (level unreadable)' : lastVolume.outcome}`
+              ` · ${lastVolume.outcome === 'blocked' ? 'blocked by the phone' : lastVolume.outcome}`
             : '—'
         }
       />

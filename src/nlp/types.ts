@@ -10,6 +10,11 @@ export type Intent =
   | 'PREVIOUS_SONG'
   | 'PLAY_SONG'
   | 'STOP'
+  /**
+   * "set volume to 70". Decided by a pattern (entityExtractor/volumeTarget),
+   * never by the classifier, so it is deliberately NOT in INTENTS.
+   */
+  | 'SET_VOLUME'
   | 'UNKNOWN';
 
 export const INTENTS: Intent[] = [
@@ -35,6 +40,8 @@ export interface Entities {
    * Undefined means "use the step configured in Settings".
    */
   volumePercent?: number;
+  /** Absolute volume from "set volume to 70", in 0-100. Only for SET_VOLUME. */
+  volumeTarget?: number;
 }
 
 /** Result of text normalization (see nlp/preprocessing/normalize.ts). */

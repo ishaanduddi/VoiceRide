@@ -31,6 +31,9 @@
     "ones": "1"
   },
   "phraseRewrites": [
+    ["\\b(change|switch) (the |this )?(song|track|music)\\b", "next song"],
+    ["\\b(another|different|some other) (song|track)\\b", "next song"],
+    ["\\bput on\\b", "play"],
     ["\\bmake (it|the music|the volume|music|volume) (a lot )?louder\\b", "increase volume"],
     ["\\bmake (it|the music|the volume|music|volume) (a lot )?quieter\\b", "decrease volume"],
     ["\\bturn (it|the music|the volume|music|volume)? ?(up|higher)\\b", "increase volume"],
