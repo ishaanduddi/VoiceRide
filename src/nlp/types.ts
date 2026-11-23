@@ -36,6 +36,12 @@ export interface Entities {
   /** Optional artist filter, from "&lt;title&gt; by &lt;artist&gt;". */
   artist?: string;
   /**
+   * Optional album / movie hint, from "&lt;title&gt; from &lt;movie&gt;". It is
+   * only used to widen the Spotify search — the title match ignores it, so
+   * "one name from jailer" still matches a track called "One Name".
+   */
+  album?: string;
+  /**
    * Explicit volume amount from "increase volume by 5 percent", in 1-100.
    * Undefined means "use the step configured in Settings".
    */
@@ -52,6 +58,13 @@ export interface NormalizedCommand {
   cleaned: string;
   /** Tokens of `cleaned`. */
   tokens: string[];
+  /**
+   * Tokens before spoken numbers are collapsed to digits.
+   *
+   * Song titles need this: "one name" must stay "one name", not become
+   * "1 name". Intent matching still uses `tokens`/`canonicalTokens`.
+   */
+  rawTokens: string[];
   /** Stop-words removed. */
   contentTokens: string[];
   /** `contentTokens` after synonym canonicalisation, e.g. song -> track. */

@@ -184,7 +184,11 @@ export async function dispatchInterpretation(
           return { ok: false, intent, spoken: responses.numberNotSupported };
         }
 
-        const played = await controller.playByQuery(title, interpretation.entities.artist);
+        const played = await controller.playByQuery(
+          title,
+          interpretation.entities.artist,
+          interpretation.entities.album,
+        );
         mark({ currentTrackName: played.name, isPlaying: true });
         return {
           ok: true,

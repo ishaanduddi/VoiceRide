@@ -30,6 +30,8 @@ const GENERIC_TITLES = new Set([
 export interface SongRequest {
   title?: string;
   artist?: string;
+  /** Movie / album hint, e.g. "jailer" from "one name from jailer". */
+  album?: string;
 }
 
 /** Words between "play" and the title that are not part of it: "play me the song X". */
@@ -37,14 +39,23 @@ const LEADING_FILLERS = new Set(['me', 'the', 'a', 'song', 'track', 'songs', 'tr
 /** Words after the title that are not part of it: "play X song please". */
 const TRAILING_FILLERS = new Set(['song', 'track', 'please', 'now', 'pls', 'plz']);
 
+/**
+ * Words that introduce an album/movie rather than being part of the title:
+ * "one name from the movie jailer", "kesariya from brahmastra".
+ */
+const ALBUM_PREFIXES = new Set(['the', 'movie', 'movies', 'film', 'album', 'series', 'soundtrack']);
+
 export function extractSongRequest(normalized: NormalizedCommand): SongRequest {
   /*
    * Titles come from the CLEANED words, not the canonical ones: canonical
    * tokens have stop-words removed and synonyms rewritten, which turned
    * "shape of you" into "shape" and would mangle any title containing "of",
    * "you", "me", "the"… — most real titles, and many regional ones.
+   *
+   * They also come from `rawTokens`, before spoken numbers are collapsed:
+   * otherwise "One Name" is searched as "1 name".
    */
-  const cleaned = normalized.tokens;
+  const cleaned = normalized.rawTokens;
   let playIndex = cleaned.lastIndexOf('play');
   let source = cleaned;
 
@@ -76,16 +87,36 @@ export function extractSongRequest(normalized: NormalizedCommand): SongRequest {
     artistTokens = rest.slice(byIndex + 1);
   }
 
+  /*
+   * "<title> from <movie/album>": the movie is not part of the title. Keeping it
+   * made "one name from jailer" score against four words, so Spotify's "One
+   * Name" fell below the minimum title score and nothing played.
+   */
+  let album: string | undefined;
+  const fromIndex = titleTokens.lastIndexOf('from');
+  if (fromIndex > 0 && fromIndex < titleTokens.length - 1) {
+    const albumTokens = titleTokens.slice(fromIndex + 1);
+    while (albumTokens.length > 1 && ALBUM_PREFIXES.has(albumTokens[0] as string)) {
+      albumTokens.shift();
+    }
+    album = albumTokens.join(' ').trim() || undefined;
+    titleTokens = titleTokens.slice(0, fromIndex);
+  }
+
   const title = titleTokens.join(' ').trim();
   if (!title) return {};
   if (titleTokens.length === 1 && GENERIC_TITLES.has(title)) return {};
 
   const artist = artistTokens.join(' ').trim();
-  return { title, artist: artist.length > 0 ? artist : undefined };
+  return {
+    title,
+    artist: artist.length > 0 ? artist : undefined,
+    album,
+  };
 }
 
 /** Extracts entities from an already-normalized command. */
 export function extractEntities(normalized: NormalizedCommand): Entities {
   const request = extractSongRequest(normalized);
-  return { songTitle: request.title, artist: request.artist };
+  return { songTitle: request.title, artist: request.artist, album: request.album };
 }

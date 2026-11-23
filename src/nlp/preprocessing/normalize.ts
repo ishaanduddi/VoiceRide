@@ -92,6 +92,7 @@ export function normalizeCommand(input: string): NormalizedCommand {
     original,
     cleaned: tokens.join(' '),
     tokens,
+    rawTokens,
     contentTokens,
     canonicalTokens,
     canonicalText: canonicalTokens.join(' '),

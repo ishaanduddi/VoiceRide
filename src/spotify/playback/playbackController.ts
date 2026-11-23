@@ -329,7 +329,7 @@ export class SpotifyPlaybackController {
    * trackSelection.ts), which is the nearest thing to "the version with the most
    * plays". Naming an artist restricts the choice to that artist.
    */
-  async playByQuery(title: string, artist?: string): Promise<PlayedTrack> {
+  async playByQuery(title: string, artist?: string, album?: string): Promise<PlayedTrack> {
     const query = title.trim();
     if (!query) throw new AppError('SONG_NOT_FOUND', 'Say the name of the song you want to play.');
 
@@ -346,8 +346,10 @@ export class SpotifyPlaybackController {
       return this.playPlaylistEntry(target, local.entry);
     }
 
-    // 2. Spotify search.
-    const results = await searchTracks({ title: query, artist });
+    // 2. Spotify search. The movie/album hint widens the query; ranking still
+    //    compares against the title only, so "one name from jailer" matches
+    //    "One Name".
+    const results = await searchTracks({ title: query, artist, album });
     const chosen = pickBestTrack(results, query, artist);
 
     if (!chosen || !chosen.uri) {

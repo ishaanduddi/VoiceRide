@@ -12,6 +12,11 @@ export interface TrackSearchInput {
   title: string;
   /** Optional artist, from "<title> by <artist>". */
   artist?: string;
+  /**
+   * Optional movie/album hint, from "<title> from <movie>". It widens the
+   * query but is never used for title matching.
+   */
+  album?: string;
 }
 
 interface TrackSearchResponse {
@@ -58,10 +63,13 @@ export async function searchTracks(
   if (!title) return [];
 
   const artist = input.artist?.trim();
+  const album = input.album?.trim();
   const perQuery = Math.min(Math.max(limit, 1), 20);
 
-  const query = (candidate: string, withArtist: boolean): string =>
-    withArtist && artist ? `${candidate} ${artist}` : candidate;
+  const plainQuery = (candidate: string, withArtist: boolean): string =>
+    [candidate, withArtist && artist ? artist : '', album ?? '']
+      .filter((part) => part.length > 0)
+      .join(' ');
 
   const fieldQuery = (candidate: string, withArtist: boolean): string =>
     withArtist && artist
@@ -71,10 +79,11 @@ export async function searchTracks(
   const queries = [
     fieldQuery(title, true),
     fieldQuery(title, false),
-    query(title, true),
+    plainQuery(title, true),
+    ...(album ? [`track:"${title}" album:"${album}"`] : []),
     ...soundAlikeSpellings(title).flatMap((variant) => [
       fieldQuery(variant, true),
-      query(variant, true),
+      plainQuery(variant, true),
     ]),
   ];
 
