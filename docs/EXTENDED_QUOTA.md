@@ -40,12 +40,24 @@ Extended Quota removes the 5-user cap (Premium is still required). Apply from th
 Spotify Developer Dashboard on the app page: **Request Extension / Extended
 Quota**.
 
+### Where to apply
+
+1. Open https://developer.spotify.com/dashboard and select the app.
+2. Use **Request Extension** (sometimes labelled "Extended quota mode").
+3. Fill in the description, redirect URI, website, privacy-policy URL, and attach
+   the screenshots + demo video below.
+4. Submit. Review usually takes **1–6 weeks**.
+
+There is **no code change, API, or setting** that lifts the cap — only this
+approval does. Until then, rotating 5 testers is the only option. After approval
+you can remove the email list entirely; any Premium account can connect.
+
 ### Checklist
 
 - [ ] App is complete and works without hand-holding (it is).
-- [ ] **Privacy policy URL** — publish `docs/PRIVACY.md`. Easiest: GitHub Pages
-      for the repo, or the raw GitHub URL. A rendered page is better than a blob.
-- [ ] **Website / GitHub repo** URL.
+- [ ] **Privacy policy URL** — live at
+      `https://ishaanduddi.github.io/VoiceRide/PRIVACY.html`.
+- [ ] **Website** — `https://ishaanduddi.github.io/VoiceRide/` (or the GitHub repo).
 - [ ] **Redirect URI** matches the app exactly:
       `https://voiceriders-oauth-relay.vercel.app/api/spotify-callback`
 - [ ] **2–3 screenshots** (Ride Mode, Settings, the volume card).
