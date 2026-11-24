@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { Banner } from '@/components/Banner';
+import { Button } from '@/components/Button';
 import { PlaylistRow } from '@/components/PlaylistRow';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { isPlaylistReadable } from '@/spotify/playlistUtils';
-import { libraryStore, loadPlaylists, selectPlaylist } from '@/state/libraryStore';
+import { clearSelectedPlaylist, libraryStore, loadPlaylists, selectPlaylist } from '@/state/libraryStore';
 import { useStore } from '@/state/observable';
 import { toUserMessage } from '@/utils/errors';
 import { colors, fontSize, spacing } from '@/theme';
@@ -32,6 +33,11 @@ export default function PlaylistsScreen() {
     } finally {
       setPendingId(undefined);
     }
+  };
+
+  const handleClear = async () => {
+    await clearSelectedPlaylist();
+    router.back();
   };
 
   return (
@@ -60,6 +66,15 @@ export default function PlaylistsScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ListHeaderComponent={
+            library.selectedPlaylistId ? (
+              <Button
+                title="No playlist — play any song by name"
+                variant="secondary"
+                onPress={() => void handleClear()}
+              />
+            ) : null
+          }
           ListEmptyComponent={
             <Text style={styles.hint}>
               No playlists found. Create one in Spotify, then pull this screen open again.

@@ -35,6 +35,7 @@ export {
   downloadModel,
   deleteModel,
   refreshModelStatus,
+  checkModelUpdate,
   formatModelSize,
   type ModelStatus,
   type ModelState,

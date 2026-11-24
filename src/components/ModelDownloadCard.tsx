@@ -25,6 +25,7 @@ export function ModelDownloadCard({ title = 'Speech model', compact = false }: M
 
   const ready = model.state === 'ready';
   const downloading = model.state === 'downloading';
+  const updateAvailable = model.updateAvailable === true;
   const progress = Math.max(0, Math.min(100, Math.round(model.progress * 100)));
 
   const startDownload = async (): Promise<void> => {
@@ -37,9 +38,11 @@ export function ModelDownloadCard({ title = 'Speech model', compact = false }: M
     <Card
       title={title}
       subtitle={
-        ready
-          ? 'Installed. Commands are recognised on the phone, even offline.'
-          : 'One-time download, about 140 MB. Without it, voice commands cannot work.'
+        updateAvailable
+          ? 'A newer speech model is available. Updating improves recognition; it replaces the installed file.'
+          : ready
+            ? 'Installed. Commands are recognised on the phone, even offline.'
+            : 'One-time download, about 140 MB. Without it, voice commands cannot work.'
       }
     >
       <View style={styles.statusRow}>
@@ -55,6 +58,15 @@ export function ModelDownloadCard({ title = 'Speech model', compact = false }: M
         </Text>
       </View>
 
+      {updateAvailable ? (
+        <View style={styles.statusRow}>
+          <Text style={styles.updateLabel}>New version</Text>
+          <Text style={styles.updateValue}>
+            {model.remoteSizeBytes ? formatModelSize(model.remoteSizeBytes) : 'available'}
+          </Text>
+        </View>
+      ) : null}
+
       {downloading ? (
         <View
           style={styles.track}
@@ -69,16 +81,18 @@ export function ModelDownloadCard({ title = 'Speech model', compact = false }: M
 
       <Button
         title={
-          ready
-            ? 'Speech model ready'
-            : downloading
-              ? `Downloading… ${progress}%`
-              : model.state === 'error'
-                ? 'Retry download'
-                : 'Download speech model'
+          downloading
+            ? `Downloading… ${progress}%`
+            : updateAvailable
+              ? 'Update speech model'
+              : ready
+                ? 'Speech model ready'
+                : model.state === 'error'
+                  ? 'Retry download'
+                  : 'Download speech model'
         }
-        variant={ready ? 'secondary' : 'primary'}
-        disabled={ready || downloading}
+        variant={ready && !updateAvailable ? 'secondary' : 'primary'}
+        disabled={downloading || (ready && !updateAvailable)}
         loading={downloading}
         onPress={() => void startDownload()}
       />
@@ -108,6 +122,15 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: fontSize.sm,
     fontWeight: '600',
+  },
+  updateLabel: {
+    color: colors.accent,
+    fontSize: fontSize.sm,
+  },
+  updateValue: {
+    color: colors.accent,
+    fontSize: fontSize.sm,
+    fontWeight: '700',
   },
   ready: {
     color: colors.success,

@@ -18,7 +18,17 @@ export function tokenSimilarity(a: string, b: string): number {
   if (a.length === 0 || b.length === 0) return 0;
 
   const orthographic = Math.max(levenshteinRatio(a, b), jaroWinkler(a, b));
-  const phonetic = phoneticMatch(a, b) * 0.95;
+
+  /*
+   * Soundex is deliberately coarse: "blueberryeyes" and "believer" both hash
+   * to B416, which made an unrelated playlist track score 0.95 against
+   * "believer" and win before Spotify was even searched. Phonetic evidence is
+   * only trusted when the words are of comparable length; short misspellings
+   * ("fein" / "fen") still pass, long unrelated words do not.
+   */
+  const lengthRatio = Math.min(a.length, b.length) / Math.max(a.length, b.length);
+  const phonetic = lengthRatio >= 0.7 ? phoneticMatch(a, b) * 0.95 : 0;
+
   return Math.max(orthographic, phonetic);
 }
 

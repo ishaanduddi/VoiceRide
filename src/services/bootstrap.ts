@@ -5,7 +5,7 @@ import { createLogger } from '@/utils/logger';
 import { loadPlaylists } from '@/state/libraryStore';
 import { refreshSession, sessionStore } from '@/state/sessionStore';
 import { loadSettings } from '@/state/settingsStore';
-import { refreshModelStatus } from '@/voice/asr';
+import { checkModelUpdate, refreshModelStatus } from '@/voice/asr';
 
 import { applyAdaptiveAudioProfile } from './appServices';
 
@@ -23,6 +23,7 @@ export function bootstrapApp(): Promise<void> {
       await loadSettings();
       applyAdaptiveAudioProfile();
       await refreshModelStatus();
+      void checkModelUpdate();
       await refreshSession();
 
       if (sessionStore.getState().status === 'connected') {

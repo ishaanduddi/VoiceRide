@@ -25,7 +25,18 @@ export interface ModelStatus {
   uri?: string;
   sizeBytes?: number;
   error?: string;
+  /** A different (newer) model file exists on the server. */
+  updateAvailable?: boolean;
+  /** Size reported by the server, when a check succeeded. */
+  remoteSizeBytes?: number;
+  /** Last successful update check, ms since epoch. */
+  lastCheckedAt?: number;
 }
+
+/** Don't hit the model host on every launch. */
+const MODEL_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
+/** A size difference beyond 1% means the published file changed. */
+const SIZE_TOLERANCE = 0.01;
 
 export const modelStore = new ObservableStore<ModelStatus>({ state: 'missing', progress: 0 });
 
@@ -55,7 +66,48 @@ export async function refreshModelStatus(): Promise<void> {
       error: undefined,
     });
   } else {
-    modelStore.setState({ state: 'missing', progress: 0, uri: undefined, sizeBytes: undefined });
+    modelStore.setState({
+      state: 'missing',
+      progress: 0,
+      uri: undefined,
+      sizeBytes: undefined,
+      updateAvailable: false,
+      remoteSizeBytes: undefined,
+    });
+  }
+}
+
+/**
+ * Checks whether the published model file differs from the installed one.
+ *
+ * The model is a static file on Hugging Face; when the maintainers republish it
+ * the size changes. A 12-hour cache keeps the check off every launch.
+ */
+export async function checkModelUpdate(force = false): Promise<void> {
+  const state = modelStore.getState();
+  if (state.state !== 'ready' || !state.sizeBytes) return;
+  if (
+    !force &&
+    state.lastCheckedAt &&
+    Date.now() - state.lastCheckedAt < MODEL_CHECK_INTERVAL_MS
+  ) {
+    return;
+  }
+
+  try {
+    const response = await fetch(whisperConfig.modelUrl, { method: 'HEAD' });
+    const sizeHeader = response.headers.get('content-length');
+    const remoteSize = sizeHeader ? Number(sizeHeader) : Number.NaN;
+    if (!response.ok || !Number.isFinite(remoteSize) || remoteSize <= 0) return;
+
+    modelStore.setState({
+      lastCheckedAt: Date.now(),
+      remoteSizeBytes: remoteSize,
+      updateAvailable:
+        Math.abs(remoteSize - state.sizeBytes) > state.sizeBytes * SIZE_TOLERANCE,
+    });
+  } catch (error) {
+    log.debug('could not check for a model update', error);
   }
 }
 
@@ -93,6 +145,10 @@ export async function downloadModel(): Promise<void> {
       uri: result.uri,
       sizeBytes: result.size,
       error: undefined,
+      // The freshly downloaded file is current by definition.
+      updateAvailable: false,
+      remoteSizeBytes: undefined,
+      lastCheckedAt: Date.now(),
     });
     log.info(`model ready: ${(result.size / 1_000_000).toFixed(1)} MB`);
   } catch (error) {

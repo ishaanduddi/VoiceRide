@@ -10,7 +10,7 @@ import { StatusPill, type PillTone } from '@/components/StatusPill';
 import { ModelDownloadCard } from '@/components/ModelDownloadCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { useStore } from '@/state/observable';
-import { libraryStore, loadPlaylists } from '@/state/libraryStore';
+import { libraryStore, clearSelectedPlaylist, loadPlaylists } from '@/state/libraryStore';
 import { sessionStore } from '@/state/sessionStore';
 import { settingsStore, updateSettings } from '@/state/settingsStore';
 import { useAppContext } from '@/state/contextStore';
@@ -51,7 +51,7 @@ export default function HomeScreen() {
 
       <UpdateBanner />
 
-      {modelReady ? null : <ModelDownloadCard compact />}
+      {modelReady && !model.updateAvailable ? null : <ModelDownloadCard compact />}
 
       {session.product === 'free' ? (
         <Banner
@@ -79,6 +79,13 @@ export default function HomeScreen() {
           onPress={() => router.push('/playlists')}
           disabled={!connected}
         />
+        {library.selectedPlaylistId ? (
+          <Button
+            title="Clear playlist (play any song by name)"
+            variant="ghost"
+            onPress={() => void clearSelectedPlaylist()}
+          />
+        ) : null}
       </Card>
 
       <Card title="Adaptive Audio Mode" subtitle="Raises the phone volume as the road gets louder.">

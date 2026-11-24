@@ -269,6 +269,12 @@ function MicrophoneCard() {
           ? 'No inputs reported yet. Connect the earphones, then reopen Settings.'
           : 'Bluetooth microphones only appear while the headset is connected. Wired and USB headset mics are pinned directly.'}
       </Text>
+
+      <Text style={styles.note}>
+        Using a Bluetooth headset mic on vivo/iQOO? Open the Bluetooth settings on your phone for
+        that headset and enable “Call audio” (the headset mic is only exposed on the call route).
+        Then reopen Settings and pick the headset here.
+      </Text>
     </Card>
   );
 }

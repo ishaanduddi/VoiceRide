@@ -124,6 +124,34 @@ export async function selectPlaylist(playlistId: string): Promise<void> {
   }
 }
 
+/**
+ * Deselects the playlist without touching the loaded list.
+ *
+ * A playlist is optional now: songs can be played by name, and a selected
+ * playlist only adds the "playlist first" matching shortcut. Riders who picked
+ * one by mistake need a way back to "no playlist".
+ */
+export async function clearSelectedPlaylist(): Promise<void> {
+  libraryStore.setState({
+    selectedPlaylistId: undefined,
+    selectedPlaylistName: undefined,
+    trackMap: null,
+    tracksError: undefined,
+  });
+
+  contextManager.setState({
+    playlistId: undefined,
+    playlistName: undefined,
+    playlistUri: undefined,
+    trackCount: 0,
+    currentTrackIndex: undefined,
+    currentTrackName: undefined,
+  });
+
+  await updateSettings({ lastPlaylistId: undefined });
+  log.info('cleared the selected playlist');
+}
+
 export function clearLibrary(): void {
   libraryStore.setState({
     playlists: [],
