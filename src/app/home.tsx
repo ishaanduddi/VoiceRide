@@ -7,6 +7,7 @@ import { Card } from '@/components/Card';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { SettingToggle } from '@/components/SettingToggle';
 import { StatusPill, type PillTone } from '@/components/StatusPill';
+import { ModelDownloadCard } from '@/components/ModelDownloadCard';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { useStore } from '@/state/observable';
 import { libraryStore, loadPlaylists } from '@/state/libraryStore';
@@ -14,26 +15,29 @@ import { sessionStore } from '@/state/sessionStore';
 import { settingsStore, updateSettings } from '@/state/settingsStore';
 import { useAppContext } from '@/state/contextStore';
 import { colors, fontSize, spacing } from '@/theme';
+import { isModelReady, modelStore } from '@/voice/asr';
 
 export default function HomeScreen() {
   const router = useRouter();
   const session = useStore(sessionStore);
   const library = useStore(libraryStore);
   const settings = useStore(settingsStore);
+  const model = useStore(modelStore);
   const context = useAppContext();
 
   const connected = session.status === 'connected';
+  const modelReady = model.state === 'ready' || isModelReady();
   const trackCount = library.trackMap?.entries.length ?? 0;
   // A playlist is optional now: songs are played by name.
-  const canRide = connected;
+  const canRide = connected && modelReady;
 
   const sessionTone: PillTone =
     session.status === 'connected' ? 'success' : session.status === 'connecting' ? 'warning' : 'neutral';
   const sessionLabel =
     session.status === 'connected'
-      ? `Connected${session.displayName ? ` · ${session.displayName}` : ''}`
+      ? `Connected${session.displayName ? ` Â· ${session.displayName}` : ''}`
       : session.status === 'connecting'
-        ? 'Connecting…'
+        ? 'Connectingâ€¦'
         : 'Not connected';
 
   return (
@@ -47,6 +51,8 @@ export default function HomeScreen() {
 
       <UpdateBanner />
 
+      {modelReady ? null : <ModelDownloadCard compact />}
+
       {session.product === 'free' ? (
         <Banner
           tone="warning"
@@ -59,7 +65,7 @@ export default function HomeScreen() {
 
       <Card
         title="Selected playlist"
-        subtitle="Optional. You can also just say “play believer” — any song on Spotify."
+        subtitle="Optional. You can also just say â€œplay believerâ€ â€” any song on Spotify."
       >
         <Text style={styles.playlistName}>
           {library.selectedPlaylistName ?? 'No playlist selected yet'}
@@ -89,11 +95,13 @@ export default function HomeScreen() {
       )}
 
       <Button title="Start Ride Mode" onPress={() => router.push('/ride')} disabled={!canRide} />
-      {!canRide ? (
+      {canRide ? null : (
         <Text style={styles.hint}>
-          {connected ? 'Connecting…' : 'Connect Spotify first.'}
+          {!connected
+            ? 'Connect Spotify first.'
+            : 'Download the speech model above to enable voice commands.'}
         </Text>
-      ) : null}
+      )}
 
       <Button title="Settings" variant="ghost" onPress={() => router.push('/settings')} />
       <Button
@@ -131,3 +139,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

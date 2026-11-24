@@ -6,6 +6,7 @@ import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { ManualCommandBox } from '@/components/ManualCommandBox';
+import { ModelDownloadCard } from '@/components/ModelDownloadCard';
 import { NoiseMeter } from '@/components/NoiseMeter';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { StatusPill, type PillTone } from '@/components/StatusPill';
@@ -22,7 +23,7 @@ import { libraryStore } from '@/state/libraryStore';
 import { useStore } from '@/state/observable';
 import { sessionStore } from '@/state/sessionStore';
 import { settingsStore } from '@/state/settingsStore';
-import { describeAsrEngine, resolveAsrEngine } from '@/voice/asr';
+import { describeAsrEngine, isModelReady, modelStore, resolveAsrEngine } from '@/voice/asr';
 import {
   getBackgroundStatus,
   requestBatteryExemption,
@@ -55,15 +56,33 @@ export default function RideModeScreen() {
   const settings = useStore(settingsStore);
   const session = useStore(sessionStore);
   const context = useAppContext();
+  const model = useStore(modelStore);
   const background = useBackgroundStatus();
+  const modelReady = model.state === 'ready' || isModelReady();
 
-  // Ride Mode is entered and left with this screen.
+  // Ride Mode is entered and left with this screen. Without the speech model
+  // there is nothing to listen with, so the microphone is not started at all.
   useEffect(() => {
+    if (!modelReady) return undefined;
     void start();
     return () => stop();
-  }, [start, stop]);
+  }, [modelReady, start, stop]);
 
   const listening = state.status === 'listening' || state.status === 'processing';
+
+  if (!modelReady) {
+    return (
+      <ScreenContainer>
+        <Text style={styles.setupTitle}>One-time setup</Text>
+        <Text style={styles.setupBody}>
+          Ride Mode needs the speech model before it can understand commands. Download it once here,
+          then start the ride.
+        </Text>
+        <ModelDownloadCard />
+        <Button title="Back to Home" variant="ghost" onPress={() => router.replace('/home')} />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer>
@@ -478,5 +497,16 @@ const styles = StyleSheet.create({
   },
   testButtons: {
     gap: spacing(2),
+  },
+  setupTitle: {
+    color: colors.text,
+    fontSize: fontSize.xl,
+    fontWeight: '800',
+    marginTop: spacing(2),
+  },
+  setupBody: {
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
   },
 });
