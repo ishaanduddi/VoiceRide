@@ -69,6 +69,21 @@ export default function RideModeScreen() {
   }, [modelReady, start, stop]);
 
   const listening = state.status === 'listening' || state.status === 'processing';
+  const [micBusy, setMicBusy] = useState(false);
+
+  /**
+   * Re-enumerates the inputs. Useful when the headset was connected after Ride
+   * Mode started, or after enabling "Call audio" for a Bluetooth headset.
+   */
+  const restartMicrophone = async (): Promise<void> => {
+    setMicBusy(true);
+    try {
+      microphone.stop();
+      await microphone.start();
+    } finally {
+      setMicBusy(false);
+    }
+  };
 
   if (!modelReady) {
     return (
@@ -176,6 +191,16 @@ export default function RideModeScreen() {
           label="Microphone"
           value={microphone.stats.inputName ?? 'platform default'}
         />
+        <Button
+          title="Re-detect microphone"
+          variant="secondary"
+          loading={micBusy}
+          onPress={() => void restartMicrophone()}
+        />
+        <Text style={styles.footnote}>
+          Connected a headset after starting? Tap to re-scan. For a Bluetooth headset mic on
+          vivo/iQOO, first enable “Call audio” for that headset in the Bluetooth settings.
+        </Text>
         <Row
           label="Background service"
           value={

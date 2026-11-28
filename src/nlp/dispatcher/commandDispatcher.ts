@@ -30,12 +30,6 @@ export interface DispatchOutcome {
   error?: string;
 }
 
-/**
- * Below this confidence a rejection is assumed to be noise rather than a failed
- * command, and nothing is spoken.
- */
-const NOISE_FLOOR_CONFIDENCE = 0.35;
-
 /** Speaks the outcome of a volume change, including why nothing moved. */
 function volumeReply(change: VolumeChange): string {
   switch (change.blockedReason) {
@@ -90,17 +84,16 @@ export async function dispatchInterpretation(
   // Anything the pipeline would not execute on its own is ignored: VoiceRiders
   // never asks "did you mean…?" any more, because a question mid-ride is more
   // disruptive than a missed command.
+  //
+  // This is deliberately silent: wind, traffic and nearby conversations trip
+  // the VAD constantly, and answering "Say that again?" to every gust made the
+  // rider turn the app off. The Last command card still shows what was heard.
   if (interpretation.decision !== 'execute') {
-    const attemptedCommand =
-      intent !== 'UNKNOWN' && interpretation.confidence >= NOISE_FLOOR_CONFIDENCE;
-    const spoken = attemptedCommand ? responses.lowConfidence : '';
-
     mark();
     log.info(
-      `rejected ${intent} (${interpretation.confidence.toFixed(2)})` +
-        (spoken ? '' : ' - silent (treated as noise)'),
+      `rejected ${intent} (${interpretation.confidence.toFixed(2)}) - silent (noise or low confidence)`,
     );
-    return { ok: false, intent, spoken };
+    return { ok: false, intent, spoken: '' };
   }
 
   try {

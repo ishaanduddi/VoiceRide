@@ -5,8 +5,8 @@
  *
  * There is deliberately no "did you mean…?" step: a question mid-ride is more
  * disruptive than a missed command, so an utterance either executes or is
- * ignored. Noise stays silent, and a plausible-but-uncertain command gets a
- * single short "Sorry, I didn't catch that."
+ * ignored. Noise stays silent — including uncertain commands and the wind
+ * transcripts below.
  *
  * Deliberately React-free so it can be driven from the Ride Mode hook, a test,
  * or the ML evaluation harness.
@@ -27,6 +27,34 @@ const log = createLogger('voice:controller');
  * only corrupts the result.
  */
 const MAX_COMMAND_WORDS = 12;
+
+/**
+ * Single tokens Whisper emits for wind, engine noise and road rumble.
+ *
+ * The VAD fires on gusts; without this the model transcribes a stray word and
+ * the app used to answer "Say that again?" at every gust. These are discarded
+ * before dispatch so nothing is spoken or displayed as a command.
+ */
+const NOISE_TRANSCRIPTS = new Set([
+  'wind',
+  'windy',
+  'wind noise',
+  'whoosh',
+  'whooshing',
+  'shh',
+  'shhh',
+  'hush',
+  'hmm',
+  'hmmm',
+  'mmm',
+  'uh',
+  'um',
+  'noise',
+  'static',
+  'rustle',
+  'rustling',
+  'background noise',
+]);
 
 export interface VoiceControllerDeps {
   asr: AsrProvider;
@@ -76,6 +104,16 @@ export class VoiceController {
     // Too short to be a command, or long enough to be a conversation.
     if (transcript.length < 2 || words.length > MAX_COMMAND_WORDS) {
       log.info(`ignored "${transcript}" (${words.length} words) - not a command`);
+      return { asr, interpretation, skipped: true };
+    }
+
+    const noiseKey = transcript
+      .toLowerCase()
+      .replace(/[^a-z ]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (NOISE_TRANSCRIPTS.has(noiseKey)) {
+      log.info(`ignored noise transcript "${transcript}"`);
       return { asr, interpretation, skipped: true };
     }
 
